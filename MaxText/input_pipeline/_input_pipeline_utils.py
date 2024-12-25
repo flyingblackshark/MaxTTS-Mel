@@ -73,7 +73,6 @@ def tokenization(example, hf_tokenizer, max_length, column_names):
       for column_name in column_names
   }
 
-
 @dataclasses.dataclass
 class HFNormalizeFeatures(grain.MapTransform):
   """Normalize feature keys for HuggingFace input"""
@@ -174,22 +173,40 @@ class HFDataSource(grain.RandomAccessDataSource):
 class ParseFeatures(grain.MapTransform):
   """Parse serialized example"""
 
-  def __init__(self, data_columns, tokenize):
-    self.data_columns = data_columns
-    if tokenize:
-      self.dtype = tf.string
-    else:
-      self.dtype = tf.int64
+  # def __init__(self, data_columns, tokenize):
+  #   self.data_columns = data_columns
+  #   if tokenize:
+  #     self.dtype = tf.string
+  #   else:
+  #     self.dtype = tf.int64
 
   def map(self, features):
-    def _parse(example):
-      parsed = tf.io.parse_example(
-          example,
-          {col: tf.io.FixedLenSequenceFeature([], dtype=self.dtype, allow_missing=True) for col in self.data_columns},
-      )
-      return parsed
+    parsed = tf.io.parse_example(features, {
+      "tokens": tf.io.FixedLenFeature([], dtype=tf.string),
+      "mel": tf.io.FixedLenFeature([], dtype=tf.string),
+      "f0": tf.io.FixedLenFeature([], dtype=tf.string),
+      #"prompt_length": tf.io.FixedLenFeature([], dtype=tf.int64)
+      })
+    tokens = tf.io.parse_tensor(parsed["tokens"],tf.int64).numpy()
+    inputs = tokens[:-1]
+    targets = tokens[1:]
+    mel =  tf.io.parse_tensor(parsed["mel"],tf.float64).numpy().transpose(1,0)
+    inputs_mel = mel[:-1]
+    targets_mel = mel[:-1]
+    f0 =  tf.io.parse_tensor(parsed["f0"],tf.int64).numpy()
+    inputs_f0 = f0[:-1]
+    targets_f0 = f0[:-1]
+    #prompt_length = parsed["prompt_length"].numpy()
 
-    return _parse(features)
+    return {
+        "inputs": inputs,
+        "targets": targets,
+        "inputs_mel":inputs_mel,
+        "targets_mel":targets_mel,
+        "inputs_f0":inputs_f0,
+        "targets_f0":targets_f0,
+        #"prompt_length":prompt_length,
+    }
 
 
 @dataclasses.dataclass
@@ -248,8 +265,8 @@ class PadToMaxLength(grain.MapTransform):
       pad_amount = max(max_length - x.shape[0], 0)
       pad_amount = [(0, pad_amount)] + [(0, 0)] * (len(x.shape) - 1)
       return np.pad(x, pad_amount)
-
-    data_columns = list(data.keys())
+    data_columns = ("input","output")
+    #data_columns = list(data.keys())
     for data_column in data_columns:
       data[f"{data_column}_segmentation"] = (data[data_column] != 0).astype(np.int32)
       data[f"{data_column}_position"] = np.arange(data[data_column].shape[0], dtype=np.int32)

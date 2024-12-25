@@ -61,29 +61,29 @@ def preprocessing_pipeline(
   assert global_batch_size % global_mesh.size == 0, "Batch size should be divisible number of global devices."
 
   operations = []
-  operations.append(_input_pipeline_utils.ParseFeatures(data_columns, tokenize))
-  if not use_dpo:
-    assert len(data_columns) == 1
-    operations.append(_input_pipeline_utils.InputsTargetsFeatures(data_columns[0]))
-    data_columns = ("inputs", "targets")
-  operations.append(_input_pipeline_utils.NormalizeFeatures(data_columns, tokenize))
+  operations.append(_input_pipeline_utils.ParseFeatures())
+  # if not use_dpo:
+  #   assert len(data_columns) == 1
+  #   operations.append(_input_pipeline_utils.InputsTargetsFeatures(data_columns[0]))
+  #   data_columns = ("inputs", "targets")
+  #operations.append(_input_pipeline_utils.NormalizeFeatures(data_columns, tokenize))
 
-  if tokenize:
-    operations.append(_grain_tokenizer.TokenizeAndTrim(data_columns, max_target_length, tokenizer_path, add_bos, add_eos))
+  # if tokenize:
+  #   operations.append(_grain_tokenizer.TokenizeAndTrim(data_columns, max_target_length, tokenizer_path, add_bos, add_eos))
 
   # Pack and Batch examples.
-  if packing and not use_dpo:
-    length_struct = {col: max_target_length for col in data_columns}
-    operations.append(
-        grain.experimental.PackAndBatchOperation(
-            batch_size=global_batch_size // jax.process_count(),
-            length_struct=length_struct,
-        )
-    )
-    operations.append(_input_pipeline_utils.ReformatPacking(data_columns))
-  else:
-    operations.append(_input_pipeline_utils.PadToMaxLength(max_target_length))
-    operations.append(grain.Batch(batch_size=global_batch_size // jax.process_count(), drop_remainder=drop_remainder))
+  # if packing and not use_dpo:
+  #   length_struct = {col: max_target_length for col in data_columns}
+  #   operations.append(
+  #       grain.experimental.PackAndBatchOperation(
+  #           batch_size=global_batch_size // jax.process_count(),
+  #           length_struct=length_struct,
+  #       )
+  #   )
+  #   operations.append(_input_pipeline_utils.ReformatPacking(data_columns))
+  # else:
+  operations.append(_input_pipeline_utils.PadToMaxLength(max_target_length))
+  operations.append(grain.Batch(batch_size=global_batch_size // jax.process_count(), drop_remainder=drop_remainder))
 
   # Shift inputs for teacher-forced training
   if shift and not use_dpo:

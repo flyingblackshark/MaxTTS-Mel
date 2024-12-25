@@ -320,7 +320,7 @@ dpo_beta: 0.1
 
 # dataset_type must be synthetic, hf, grain, tfds
 # details in: https://github.com/google/maxtext/blob/main/getting_started/Data_Input_Pipeline.md
-dataset_type: tfds
+dataset_type: grain
 # for TFDS input pipeline (dataset_type=tfds)
 dataset_path: "" # your path given as argument in download_dataset.sh, e.g. "gs://my-maxtext-dataset/"
 dataset_name: 'c4/en:3.0.1'
@@ -334,7 +334,7 @@ hf_eval_split: ''
 hf_eval_files: ''
 hf_access_token: ''
 # for Grain input pipeline (dataset_type=grain)
-grain_train_files: ''
+grain_train_files: '/dev/shm/dataset/*.arrayrecord'
 grain_eval_files: ''
 grain_worker_count: 1
 
@@ -514,3 +514,6 @@ sa_use_fused_bwd_kernel: False
 sa_q_layout: "HEAD_DIM_MINOR"
 sa_k_layout: "HEAD_DIM_MINOR"
 sa_v_layout: "HEAD_DIM_MINOR"
+
+#mel details
+mel_bins: 128

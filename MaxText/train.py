@@ -409,7 +409,7 @@ def loss_fn(model, config, data, dropout_rng, params, is_train=True):
     aux: a dictionary including intermediate_outputs, total_loss, and total_weights
   """
   # inputs, targets, segments, positions = apply_args
-  rng1, aqt_rng = jax.random.split(dropout_rng)
+  rng1, aqt_rng , sample_key = jax.random.split(dropout_rng , 3)
 
   # decimate proportion of data when per_device_batch_size<1
   if is_train:
@@ -425,7 +425,7 @@ def loss_fn(model, config, data, dropout_rng, params, is_train=True):
       data["inputs_position"],
       decoder_segment_ids=data["inputs_segmentation"],
       enable_dropout=config.enable_dropout if is_train else False,
-      rngs={"dropout": rng1, "params": aqt_rng},
+      rngs={"dropout": rng1, "params": aqt_rng, "sample":sample_key},
       mutable="intermediates",
   )
   one_hot_targets = jax.nn.one_hot(data["targets"], config.vocab_size)

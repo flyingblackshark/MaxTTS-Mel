@@ -2,6 +2,20 @@
   "version": "0.2.0",
   "configurations": [
     {
+      "name": "Debug MaxText For Mel TTS Grain",
+      "type": "python",
+      "request": "launch",
+      "console": "integratedTerminal",
+      "justMyCode": false,
+      "python": "python3",
+      "program": "MaxText/train.py",
+      "args": ["MaxText/configs/base.yml",
+      "run_name=meltest1" ,
+     "base_output_directory=gs://fbs-us2/maxtext_output",
+     "dataset_type=grain",
+    "steps=1000"]
+    },
+    {
       "name": "Debug MaxText Decode",
       "type": "python",
       "request": "launch",

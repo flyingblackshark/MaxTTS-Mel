@@ -30,7 +30,7 @@ from layers import embeddings
 from layers import linears
 from layers import normalizations, quantizations
 from layers import pipeline
-
+from layers import fbs_layer
 Array = common_types.Array
 Config = common_types.Config
 DType = common_types.DType
@@ -271,6 +271,8 @@ class Decoder(nn.Module):
       self,
       decoder_input_tokens,
       decoder_positions,
+      decoder_mel,
+      decoder_f0,
       decoder_segment_ids=None,
       deterministic=False,
       model_mode=common_types.MODEL_MODE_TRAIN,
@@ -281,8 +283,33 @@ class Decoder(nn.Module):
 
     # [batch, length] -> [batch, length, emb_dim]
     y = self.shared_embedding(decoder_input_tokens.astype("int32"))
+    y +=  linears.DenseGeneral(
+          cfg.emb_dim,
+          dtype=cfg.dtype,
+          weight_dtype=cfg.weight_dtype,
+          kernel_axes=("embed", "num_activations", "mlp"),
+          name="mel_dense",
+          quant=self.quant,
+          use_bias=True,
+          matmul_precision=self.config.matmul_precision,
+      )(decoder_mel)
+    decoder_f0 = jnp.expand_dims(decoder_f0,-1)
+    decoder_f0 = nn.with_logical_constraint(
+        decoder_f0, ("activation_embed_and_logits_batch", "activation_length")
+    )
+    y +=  linears.DenseGeneral(
+        cfg.emb_dim,
+        dtype=cfg.dtype,
+        weight_dtype=cfg.weight_dtype,
+        kernel_axes=("embed", "num_activations"),
+        name="f0_dense",
+        quant=self.quant,
+        use_bias=True,
+        matmul_precision=self.config.matmul_precision,
+    )(decoder_f0)
     y = nn.Dropout(rate=cfg.dropout_rate, broadcast_dims=(-2,))(y, deterministic=deterministic)
     y = y.astype(cfg.dtype)
+
 
     if cfg.use_untrainable_positional_embedding:
       y = PositionalEmbedding(cfg.base_emb_dim)(y, decoder_positions)
@@ -410,33 +437,49 @@ class Decoder(nn.Module):
     )(y)
     y = nn.Dropout(rate=cfg.dropout_rate, broadcast_dims=(-2,))(y, deterministic=deterministic)
 
-    # [batch, length, emb_dim] -> [batch, length, vocab_size]
-    if cfg.logits_via_embedding:
-      # Use the transpose of embedding matrix for logit transform.
-      logits = self.shared_embedding.attend(y)
-      if self.config.normalize_embedding_logits:
-        # Correctly normalize pre-softmax logits for this shared case.
-        logits = logits / jnp.sqrt(y.shape[-1])
-      if cfg.final_logits_soft_cap:
-        logits = logits / cfg.final_logits_soft_cap
-        logits = jnp.tanh(logits) * cfg.final_logits_soft_cap
-    else:
-      logits = linears.DenseGeneral(
-          cfg.vocab_size,
-          weight_dtype=cfg.weight_dtype,
-          dtype=jnp.float32 if cfg.logits_dot_in_fp32 else cfg.dtype,  # for logit training stability
-          kernel_axes=("embed", "vocab"),
-          name="logits_dense",
-          matmul_precision=self.config.matmul_precision,
-      )(
-          y
-      )  # We do not quantize the logits matmul.
+    logits = linears.DenseGeneral(
+        cfg.vocab_size,
+        weight_dtype=cfg.weight_dtype,
+        dtype=jnp.float32 if cfg.logits_dot_in_fp32 else cfg.dtype,  # for logit training stability
+        kernel_axes=("embed", "vocab"),
+        name="logits_dense",
+        matmul_precision=self.config.matmul_precision,
+    )(
+        y
+    )  # We do not quantize the logits matmul.
+
+    mel = fbs_layer.LatentSamplingModule(config=cfg, mesh=mesh, name=f"latenet_sample", quant=self.quant)(y)
+
     logits = nn.with_logical_constraint(
         logits, ("activation_embed_and_logits_batch", "activation_length", "activation_vocab")
     )
+    mel = nn.with_logical_constraint(
+        mel, ("activation_embed_and_logits_batch", "activation_length", "activation_vocab")
+    )
     if self.config.cast_logits_to_fp32:
       logits = logits.astype(jnp.float32)
-    return logits
+
+    stop_prob = linears.DenseGeneral(
+        1,
+        weight_dtype=cfg.weight_dtype,
+        dtype=jnp.float32 if cfg.logits_dot_in_fp32 else cfg.dtype,  # for logit training stability
+        kernel_axes=("embed", "vocab"),
+        name="stop_prob_dense",
+        matmul_precision=self.config.matmul_precision,
+    )(y)
+
+    stop_prob = nn.sigmoid(stop_prob)
+
+    f0_predict = linears.DenseGeneral(
+        1,
+        weight_dtype=cfg.weight_dtype,
+        dtype=jnp.float32 if cfg.logits_dot_in_fp32 else cfg.dtype,  # for logit training stability
+        kernel_axes=("embed", "vocab"),
+        name="f0_output_dense",
+        matmul_precision=self.config.matmul_precision,
+    )(y)
+
+    return logits,mel,stop_prob,f0_predict
 
 
 class Transformer(nn.Module):
@@ -469,6 +512,8 @@ class Transformer(nn.Module):
       self,
       decoder_input_tokens,
       decoder_positions,
+      decoder_mel,
+      decoder_f0,
       decoder_segment_ids=None,
       enable_dropout=True,
       model_mode=common_types.MODEL_MODE_TRAIN,
@@ -484,6 +529,8 @@ class Transformer(nn.Module):
     logits = self.decoder(
         decoder_input_tokens=decoder_input_tokens,
         decoder_positions=decoder_positions,
+        decoder_mel=decoder_mel,
+        decoder_f0=decoder_f0,
         decoder_segment_ids=decoder_segment_ids,
         deterministic=not enable_dropout,
         model_mode=model_mode,

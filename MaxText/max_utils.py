@@ -621,9 +621,12 @@ def init_initial_state(model, tx, config, is_training, key):
   Args: model, tx, config, is_training, key
   """
   input_shape = (config.micro_batch_size_to_train_on, config.max_target_length)
+  mel_input_shape = (config.micro_batch_size_to_train_on, config.max_target_length, config.mel_bins)
   model_vars = model.init(
-      {"params": key, "dropout": key, "aqt": key},
+      {"params": key, "dropout": key, "aqt": key, "sample": key},
       np.ones(input_shape, dtype=jnp.int32),
+      np.ones(input_shape, dtype=jnp.int32),
+      np.ones(mel_input_shape, dtype=jnp.int32),
       np.ones(input_shape, dtype=jnp.int32),
   )
   if is_training:
