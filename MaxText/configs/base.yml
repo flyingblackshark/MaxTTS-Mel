@@ -517,3 +517,4 @@ sa_v_layout: "HEAD_DIM_MINOR"
 
 #mel details
 mel_bins: 128
+semantic_code: 100266

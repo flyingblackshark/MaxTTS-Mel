@@ -284,7 +284,8 @@ class Decoder(nn.Module):
 
     # [batch, length] -> [batch, length, emb_dim]
     y = self.shared_embedding(decoder_input_tokens.astype("int32"))
-    y += self.f0_embedding(decoder_f0.astype("int32"))
+    mask = (decoder_input_tokens != cfg.semantic_code)
+    y += self.f0_embedding(decoder_f0.astype("int32")) * mask[...,jnp.newaxis]
     y +=  linears.DenseGeneral(
           cfg.emb_dim,
           dtype=cfg.dtype,
@@ -294,7 +295,7 @@ class Decoder(nn.Module):
           quant=self.quant,
           use_bias=True,
           matmul_precision=self.config.matmul_precision,
-      )(decoder_mel)
+      )(decoder_mel) * mask[...,jnp.newaxis]
     
     y = nn.Dropout(rate=cfg.dropout_rate, broadcast_dims=(-2,))(y, deterministic=deterministic)
     y = y.astype(cfg.dtype)
@@ -437,17 +438,27 @@ class Decoder(nn.Module):
         y
     )  # We do not quantize the logits matmul.
 
-    mel = fbs_layer.LatentSamplingModule(config=cfg, mesh=mesh, name=f"latenet_sample", quant=self.quant)(y)
+    mel_sample ,_ ,_ = fbs_layer.LatentSamplingModule(config=cfg, mesh=mesh, name=f"latenet_sample", quant=self.quant)(y)
 
     logits = nn.with_logical_constraint(
         logits, ("activation_embed_and_logits_batch", "activation_length", "activation_vocab")
     )
+
+    if self.config.cast_logits_to_fp32:
+      logits = logits.astype(jnp.float32)
+      
+    mel = linears.DenseGeneral(
+        cfg.mel_bins,
+        weight_dtype=cfg.weight_dtype,
+        dtype=jnp.float32 if cfg.logits_dot_in_fp32 else cfg.dtype,  # for logit training stability
+        kernel_axes=("embed", "vocab"),
+        name="mel_output_dense",
+        matmul_precision=self.config.matmul_precision,
+    )(mel_sample)
+
     mel = nn.with_logical_constraint(
         mel, ("activation_embed_and_logits_batch", "activation_length", "activation_vocab")
     )
-    if self.config.cast_logits_to_fp32:
-      logits = logits.astype(jnp.float32)
-
     stop_prob = linears.DenseGeneral(
         1,
         weight_dtype=cfg.weight_dtype,
