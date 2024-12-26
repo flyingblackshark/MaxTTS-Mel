@@ -419,10 +419,12 @@ def loss_fn(model, config, data, dropout_rng, params, is_train=True):
     for k, v in data.items():
       data[k] = v[: config.micro_batch_size_to_eval_on, :]
 
-  logits, intermediate_outputs = model.apply(
+  (logits,mel,stop_prob,f0_predict), intermediate_outputs = model.apply(
       params,
       data["inputs"],
       data["inputs_position"],
+      data["inputs_mel"],
+      data["inputs_f0"],
       decoder_segment_ids=data["inputs_segmentation"],
       enable_dropout=config.enable_dropout if is_train else False,
       rngs={"dropout": rng1, "params": aqt_rng, "sample":sample_key},

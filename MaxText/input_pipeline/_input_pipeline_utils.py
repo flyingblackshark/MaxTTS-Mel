@@ -265,7 +265,7 @@ class PadToMaxLength(grain.MapTransform):
       pad_amount = max(max_length - x.shape[0], 0)
       pad_amount = [(0, pad_amount)] + [(0, 0)] * (len(x.shape) - 1)
       return np.pad(x, pad_amount)
-    data_columns = ("input","output")
+    data_columns = ("inputs","targets")
     #data_columns = list(data.keys())
     for data_column in data_columns:
       data[f"{data_column}_segmentation"] = (data[data_column] != 0).astype(np.int32)

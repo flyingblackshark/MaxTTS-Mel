@@ -175,6 +175,7 @@ class Decoder(nn.Module):
 
   config: Config
   shared_embedding: nn.Module
+  f0_embedding: nn.Module
   mesh: Mesh
   quant: Optional[Quant] = None
 
@@ -283,30 +284,18 @@ class Decoder(nn.Module):
 
     # [batch, length] -> [batch, length, emb_dim]
     y = self.shared_embedding(decoder_input_tokens.astype("int32"))
+    y += self.f0_embedding(decoder_f0.astype("int32"))
     y +=  linears.DenseGeneral(
           cfg.emb_dim,
           dtype=cfg.dtype,
           weight_dtype=cfg.weight_dtype,
-          kernel_axes=("embed", "num_activations", "mlp"),
+          kernel_axes=("embed", "mlp"),
           name="mel_dense",
           quant=self.quant,
           use_bias=True,
           matmul_precision=self.config.matmul_precision,
       )(decoder_mel)
-    decoder_f0 = jnp.expand_dims(decoder_f0,-1)
-    decoder_f0 = nn.with_logical_constraint(
-        decoder_f0, ("activation_embed_and_logits_batch", "activation_length")
-    )
-    y +=  linears.DenseGeneral(
-        cfg.emb_dim,
-        dtype=cfg.dtype,
-        weight_dtype=cfg.weight_dtype,
-        kernel_axes=("embed", "num_activations"),
-        name="f0_dense",
-        quant=self.quant,
-        use_bias=True,
-        matmul_precision=self.config.matmul_precision,
-    )(decoder_f0)
+    
     y = nn.Dropout(rate=cfg.dropout_rate, broadcast_dims=(-2,))(y, deterministic=deterministic)
     y = y.astype(cfg.dtype)
 
@@ -471,7 +460,7 @@ class Decoder(nn.Module):
     stop_prob = nn.sigmoid(stop_prob)
 
     f0_predict = linears.DenseGeneral(
-        1,
+        cfg.mel_bins,
         weight_dtype=cfg.weight_dtype,
         dtype=jnp.float32 if cfg.logits_dot_in_fp32 else cfg.dtype,  # for logit training stability
         kernel_axes=("embed", "vocab"),
@@ -505,8 +494,16 @@ class Transformer(nn.Module):
         name="token_embedder",
         config=cfg,
     )
-
-    self.decoder = Decoder(config=cfg, shared_embedding=self.shared_embedding, mesh=mesh, quant=self.quant)
+    self.f0_embedding = Embed(
+        num_embeddings=cfg.mel_bins,
+        features=cfg.emb_dim,
+        dtype=cfg.dtype,
+        attend_dtype=jnp.float32 if cfg.logits_dot_in_fp32 else cfg.dtype,  # for logit training stability
+        embedding_init=nn.initializers.normal(stddev=1.0),
+        name="f0_embedder",
+        config=cfg,
+    )
+    self.decoder = Decoder(config=cfg, shared_embedding=self.shared_embedding,f0_embedding=self.f0_embedding, mesh=mesh, quant=self.quant)
 
   def __call__(
       self,
@@ -526,7 +523,7 @@ class Transformer(nn.Module):
           f" which is always {common_types.DECODING_ACTIVE_SEQUENCE_INDICATOR}."
       )
 
-    logits = self.decoder(
+    logits,mel,stop_prob,f0_predict = self.decoder(
         decoder_input_tokens=decoder_input_tokens,
         decoder_positions=decoder_positions,
         decoder_mel=decoder_mel,
@@ -535,4 +532,4 @@ class Transformer(nn.Module):
         deterministic=not enable_dropout,
         model_mode=model_mode,
     )
-    return logits
+    return logits,mel,stop_prob,f0_predict
