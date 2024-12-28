@@ -35,72 +35,72 @@ class Output:
     f0: np.ndarray
     length: int
     speaker_id: int
-def first_fit_pack(outputs: List[Output], max_length: int = 10240):
-    """
-    使用 First-Fit 算法打包 Output 对象。
+# def first_fit_pack(outputs: List[Output], max_length: int = 10240):
+#     """
+#     使用 First-Fit 算法打包 Output 对象。
 
-    Args:
-        outputs: Output 对象列表。
-        max_length: 每个包的最大长度。
+#     Args:
+#         outputs: Output 对象列表。
+#         max_length: 每个包的最大长度。
 
-    Returns:
-        一个包含打包后 Output 对象列表的列表。
-    """
+#     Returns:
+#         一个包含打包后 Output 对象列表的列表。
+#     """
 
-    packed_outputs: List[List[Output]] = []
-    current_pack: List[Output] = []
-    current_length: int = 0
+#     packed_outputs: List[List[Output]] = []
+#     current_pack: List[Output] = []
+#     current_length: int = 0
 
-    for output in outputs:
-        if current_length + output.length <= max_length:
-            current_pack.append(output)
-            current_length += output.length
-        else:
-            packed_outputs.append(current_pack)
-            current_pack = [output]
-            current_length = output.length
+#     for output in outputs:
+#         if current_length + output.length <= max_length:
+#             current_pack.append(output)
+#             current_length += output.length
+#         else:
+#             packed_outputs.append(current_pack)
+#             current_pack = [output]
+#             current_length = output.length
 
-    # 添加最后一个包
-    if current_pack:
-        packed_outputs.append(current_pack)
+#     # 添加最后一个包
+#     if current_pack:
+#         packed_outputs.append(current_pack)
 
-    return packed_outputs
+#     return packed_outputs
 
-def merge_packed_outputs(packed_outputs: List[List[Output]]):
-    """
-    将打包后的 Output 对象列表合并成新的 Output 对象。
+# def merge_packed_outputs(packed_outputs: List[List[Output]]):
+#     """
+#     将打包后的 Output 对象列表合并成新的 Output 对象。
 
-    Args:
-        packed_outputs: 打包后的 Output 对象列表。
+#     Args:
+#         packed_outputs: 打包后的 Output 对象列表。
 
-    Returns:
-        一个包含合并后 Output 对象的列表。如果输入为空或所有子列表都为空，则返回空列表。
-    """
-    if not packed_outputs or all(not pack for pack in packed_outputs):
-        return []
+#     Returns:
+#         一个包含合并后 Output 对象的列表。如果输入为空或所有子列表都为空，则返回空列表。
+#     """
+#     if not packed_outputs or all(not pack for pack in packed_outputs):
+#         return []
 
-    merged_outputs = []
-    for pack in packed_outputs:
-        if not pack:
-            continue
+#     merged_outputs = []
+#     for pack in packed_outputs:
+#         if not pack:
+#             continue
 
-        # 处理不同的 speaker_id
-        speaker_ids = [output.speaker_id for output in pack]
-        speaker_counts = Counter(speaker_ids)
-        most_common_speaker = speaker_counts.most_common(1)[0][0] #获取数量最多的speaker_id
-        filtered_pack = [output for output in pack if output.speaker_id == most_common_speaker] #过滤掉非主要speaker_id的数据
+#         # 处理不同的 speaker_id
+#         speaker_ids = [output.speaker_id for output in pack]
+#         speaker_counts = Counter(speaker_ids)
+#         most_common_speaker = speaker_counts.most_common(1)[0][0] #获取数量最多的speaker_id
+#         filtered_pack = [output for output in pack if output.speaker_id == most_common_speaker] #过滤掉非主要speaker_id的数据
 
-        if not filtered_pack: #如果过滤后为空，则跳过
-            continue
+#         if not filtered_pack: #如果过滤后为空，则跳过
+#             continue
 
-        merged_tokens = np.concatenate([output.tokens for output in filtered_pack], axis=0)
-        merged_mel = np.concatenate([output.mel for output in filtered_pack], axis=1)
-        merged_f0 = np.concatenate([output.f0 for output in filtered_pack], axis=0)
-        merged_length = sum(output.length for output in filtered_pack)
+#         merged_tokens = np.concatenate([output.tokens for output in filtered_pack], axis=0)
+#         merged_mel = np.concatenate([output.mel for output in filtered_pack], axis=1)
+#         merged_f0 = np.concatenate([output.f0 for output in filtered_pack], axis=0)
+#         merged_length = sum(output.length for output in filtered_pack)
 
-        merged_outputs.append(Output(merged_tokens, merged_mel, merged_f0, merged_length, most_common_speaker))
+#         merged_outputs.append(Output(merged_tokens, merged_mel, merged_f0, merged_length, most_common_speaker))
 
-    return merged_outputs
+#     return merged_outputs
 
 def f0_to_coarse_numpy(f0, f0_bin=128, f0_mel_min=80.0, f0_mel_max=880.0):
     """
@@ -280,7 +280,7 @@ if __name__ == "__main__":
     os.makedirs("/dev/shm/dataset2/",exist_ok=True)
     for item in multihost_gen:
         #if jax.process_index() == 0:
-        
+        print(f"round {i}",flush=True)
         if i%10240 == 0:
             print(f"round {i}",flush=True)
             num = i//10240
@@ -350,7 +350,7 @@ if __name__ == "__main__":
             i+=1
             
             #if jax.process_index() == 0:
-            print(f"round {i}",flush=True)
+            #print(f"round {i}",flush=True)
             # packed = first_fit_pack(outputs)
             # merged = merge_packed_outputs(packed)
         #if jax.process_index() == 0:
