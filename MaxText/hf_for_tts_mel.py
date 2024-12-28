@@ -199,8 +199,8 @@ class PadToMaxLength(grain.MapTransform):
 if __name__ == "__main__":
     #if DEVICE == "tpu":
     jax.distributed.initialize()
-    device_mesh = mesh_utils.create_device_mesh((jax.device_count(), 1))
-    mesh = Mesh(device_mesh, axis_names=("data", "model")) 
+    device_mesh = mesh_utils.create_device_mesh((jax.device_count(),))
+    mesh = Mesh(device_mesh, axis_names=("data")) 
     dataset = datasets.load_dataset(
         "MikhailT/hifi-tts",
         name="clean",
