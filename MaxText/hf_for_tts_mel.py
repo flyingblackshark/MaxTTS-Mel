@@ -26,7 +26,7 @@ DEVICE = "tpu"
 MAX_LENGTH_AUDIO_44K = 30 * 44100
 MAX_LENGTH_AUDIO_16K = 30 * 16000
 MAX_LENGTH_TEXT = 10000
-PER_DEVICE_BATCH_SIZE = 4
+PER_DEVICE_BATCH_SIZE = 16
 SOURCE_SAMPLERATE = 44100
 @dataclass
 class Output:
@@ -279,8 +279,8 @@ if __name__ == "__main__":
     
     os.makedirs("/dev/shm/dataset2/",exist_ok=True)
     for item in multihost_gen:
-        if jax.process_index() == 0:
-            print(f"round {i}",flush=True)
+        #if jax.process_index() == 0:
+        print(f"round {i}",flush=True)
         if i%10240 == 0:
             num = i//10240
             if writer is not None:
@@ -346,8 +346,8 @@ if __name__ == "__main__":
 
             i+=1
             
-            if jax.process_index() == 0:
-                print(f"round {i}",flush=True)
+            #if jax.process_index() == 0:
+            print(f"round {i}",flush=True)
             # packed = first_fit_pack(outputs)
             # merged = merge_packed_outputs(packed)
         #if jax.process_index() == 0:
