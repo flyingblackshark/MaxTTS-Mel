@@ -302,7 +302,7 @@ if __name__ == "__main__":
             # text_arr = jax.device_get(text_arr)
             for k in range(PER_DEVICE_BATCH_SIZE * jax.device_count()):
                 n_frames = item["audio_length"][k]//512
-                text_length = item["text_length"][k]
+                text_length = int(item["text_length"][k])
                 text_tokens = text_arr[k][:text_length]
                 speaker_id = item["speaker_id"][k]
                 
