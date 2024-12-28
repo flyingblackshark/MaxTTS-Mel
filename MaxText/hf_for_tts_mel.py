@@ -20,7 +20,8 @@ from flax.core import FrozenDict, copy
 from collections import Counter
 from array_record.python.array_record_module import ArrayRecordWriter
 DEVICE = "tpu"
-MAX_LENGTH_AUDIO = 30 * 44100
+MAX_LENGTH_AUDIO_44K = 30 * 44100
+MAX_LENGTH_AUDIO_16K = 30 * 16000
 MAX_LENGTH_TEXT = 10000
 PER_DEVICE_BATCH_SIZE = 16
 SOURCE_SAMPLERATE = 44100
@@ -167,8 +168,10 @@ class HFParseAudioFeatures(grain.MapTransform):
   """Normalize feature keys for HuggingFace input"""
   def map(self, features):
     audio_44k = librosa.resample(features["audio"]["array"], orig_sr=SOURCE_SAMPLERATE, target_sr=44100)
+    audio_16k = librosa.resample(features["audio"]["array"], orig_sr=SOURCE_SAMPLERATE, target_sr=16000)
     return {
-        "audio": np.asarray(audio_44k, dtype=np.float32),
+        "audio_44k": np.asarray(audio_44k, dtype=np.float32),
+        "audio_16k": np.asarray(audio_16k, dtype=np.float32),
         "text": np.asarray(features["text"], dtype=np.int32),
         "speaker_id": np.asarray(features["speaker"], dtype=np.int32),
     }   
@@ -176,12 +179,14 @@ class HFParseAudioFeatures(grain.MapTransform):
 class PadToMaxLength(grain.MapTransform):
 
   def map(self, data):
-    audio_length = data["audio"].shape[0]
-    padded_audio = np.pad(data["audio"],(0,MAX_LENGTH_AUDIO - data["audio"].shape[0]))
+    audio_length = data["audio_44k"].shape[0]
+    padded_audio_44k = np.pad(data["audio_44k"],(0,MAX_LENGTH_AUDIO_44K - data["audio_44k"].shape[0]))
+    padded_audio_16k = np.pad(data["audio_16k"],(0,MAX_LENGTH_AUDIO_16K - data["audio_16k"].shape[0]))
     text_length = data["text"].shape[0]
     padded_text = np.pad(data["text"],(0,MAX_LENGTH_TEXT - data["text"].shape[0]))
     return {
-        "audio": padded_audio,
+        "audio_44k": padded_audio_44k,
+        "audio_16k": padded_audio_16k,
         "audio_length":audio_length,
         "text": padded_text,
         "text_length":text_length,
@@ -278,9 +283,9 @@ if __name__ == "__main__":
                     writer.close() 
                 writer = ArrayRecordWriter(f"/dev/shm/dataset2/hifi_tts_train_part_{num}.arrayrecord", 'group_size:1')
             
-        mel_arr  = jax.jit(get_mel, in_shardings=x_sharding,out_shardings=x_sharding)(item["audio"])
-        audio_16k = librosa.resample(item["audio"], orig_sr=SOURCE_SAMPLERATE, target_sr=16000)
-        f0_arr = jax.jit(partial(jax_fcpe.get_f0,sr=16000,model=fcpe_model,params=fcpe_params), in_shardings=x_sharding,out_shardings=x_sharding)(audio_16k)
+        mel_arr  = jax.jit(get_mel, in_shardings=x_sharding,out_shardings=x_sharding)(item["audio_44k"])
+        
+        f0_arr = jax.jit(partial(jax_fcpe.get_f0,sr=16000,model=fcpe_model,params=fcpe_params), in_shardings=x_sharding,out_shardings=x_sharding)(item["audio_16k"])
         f0_arr = jax.image.resize(f0_arr,shape=(f0_arr.shape[0],mel_arr.shape[-1],1),method="nearest")
         if jax.process_index() == 0:
             mel_arr = np.asarray(mel_arr)
@@ -326,15 +331,16 @@ if __name__ == "__main__":
                         codes[book_idx].append(j)
                 for book in codes:
                     book.extend([MEL_PAD_TOKEN_ID] * 1)
-                    tokens = np.asarray(tokens)
-                    codes = np.asarray(codes)
-                    mel = codes[:-1]
-                    f0 = codes[-1]
-                    f0 = f0_to_coarse_numpy(f0)
-                    single_output = Output(tokens,mel,f0,tokens.shape[0],speaker_id)
-                    outputs.append(single_output)
+                tokens = np.asarray(tokens)
+                codes = np.asarray(codes)
+                speaker_id = np.asarray(speaker_id).tolist()
+                mel = codes[:-1]
+                f0 = codes[-1]
+                f0 = f0_to_coarse_numpy(f0)
+                single_output = Output(tokens,mel,f0,tokens.shape[0],speaker_id)
+                outputs.append(single_output)
 
-            i+=1
+                i+=1
             packed = first_fit_pack(outputs)
             merged = merge_packed_outputs(packed)
             for merged_pack in merged:
