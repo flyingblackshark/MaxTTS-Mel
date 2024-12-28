@@ -360,7 +360,7 @@ learning_rate_schedule_steps: -1 # By default the length of the schedule is set 
 # However you may choose a longer schedule (learning_rate_schedule_steps > steps), in which case the training will end before
 # dropping fully down. Or you may choose a shorter schedule, where the unspecified steps will have a learning rate of 0.
 
-max_target_length: 2048 # Maximum sequence length
+max_target_length: 10240 # Maximum sequence length
 max_prefill_predict_length: 64 # Maximum length for the prefill when doing autoregression
 prompt: "I love to" # Prompt for language model sampling.
 load_from_prefill_dir: False # If true, decode.py doesn't "prefill" but just reads from directory

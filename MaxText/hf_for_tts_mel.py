@@ -1,8 +1,9 @@
+from dataclasses import dataclass
+from typing import List
 import datasets
-import transformers
 import grain.python as grain
-from input_pipeline import _input_pipeline_utils
 import multihost_dataloading
+from input_pipeline import _input_pipeline_utils
 from jax.experimental import mesh_utils
 from jax.sharding import Mesh, NamedSharding, PartitionSpec
 from functools import partial
@@ -16,12 +17,87 @@ from librosa.filters import mel as librosa_mel_fn
 import audax.core.stft
 import jax_fcpe
 from flax.core import FrozenDict, copy
+from collections import Counter
 from array_record.python.array_record_module import ArrayRecordWriter
 DEVICE = "tpu"
 MAX_LENGTH_AUDIO = 30 * 44100
 MAX_LENGTH_TEXT = 10000
 GLOBAL_BATCH_SIZE = 64
 SOURCE_SAMPLERATE = 44100
+@dataclass
+class Output:
+    tokens: np.ndarray
+    mel: np.ndarray
+    f0: np.ndarray
+    length: int
+    speaker_id: int
+def first_fit_pack(outputs: List[Output], max_length: int = 10240):
+    """
+    使用 First-Fit 算法打包 Output 对象。
+
+    Args:
+        outputs: Output 对象列表。
+        max_length: 每个包的最大长度。
+
+    Returns:
+        一个包含打包后 Output 对象列表的列表。
+    """
+
+    packed_outputs: List[List[Output]] = []
+    current_pack: List[Output] = []
+    current_length: int = 0
+
+    for output in outputs:
+        if current_length + output.length <= max_length:
+            current_pack.append(output)
+            current_length += output.length
+        else:
+            packed_outputs.append(current_pack)
+            current_pack = [output]
+            current_length = output.length
+
+    # 添加最后一个包
+    if current_pack:
+        packed_outputs.append(current_pack)
+
+    return packed_outputs
+
+def merge_packed_outputs(packed_outputs: List[List[Output]]):
+    """
+    将打包后的 Output 对象列表合并成新的 Output 对象。
+
+    Args:
+        packed_outputs: 打包后的 Output 对象列表。
+
+    Returns:
+        一个包含合并后 Output 对象的列表。如果输入为空或所有子列表都为空，则返回空列表。
+    """
+    if not packed_outputs or all(not pack for pack in packed_outputs):
+        return []
+
+    merged_outputs = []
+    for pack in packed_outputs:
+        if not pack:
+            continue
+
+        # 处理不同的 speaker_id
+        speaker_ids = [output.speaker_id for output in pack]
+        speaker_counts = Counter(speaker_ids)
+        most_common_speaker = speaker_counts.most_common(1)[0][0] #获取数量最多的speaker_id
+        filtered_pack = [output for output in pack if output.speaker_id == most_common_speaker] #过滤掉非主要speaker_id的数据
+
+        if not filtered_pack: #如果过滤后为空，则跳过
+            continue
+
+        merged_tokens = np.concatenate([output.tokens for output in filtered_pack], axis=0)
+        merged_mel = np.concatenate([output.mel for output in filtered_pack], axis=1)
+        merged_f0 = np.concatenate([output.f0 for output in filtered_pack], axis=0)
+        merged_length = sum(output.length for output in filtered_pack)
+
+        merged_outputs.append(Output(merged_tokens, merged_mel, merged_f0, merged_length, most_common_speaker))
+
+    return merged_outputs
+
 def f0_to_coarse_numpy(f0, f0_bin=128, f0_mel_min=80.0, f0_mel_max=880.0):
     """
     将 f0 值转换为粗略表示的 NumPy 版本。
@@ -72,10 +148,6 @@ def get_mel(y, keyshift=0, speed=1, center=False):
     
     pad_left = (win_size_new - hop_length_new) //2
     pad_right = max((win_size_new - hop_length_new + 1) //2, win_size_new - y.shape[-1] - pad_left)
-    # if pad_right < y.size(-1):
-    #     mode = 'reflect'
-    # else:
-    #     mode = 'constant'
     y = jnp.pad(y, ((0,0),(pad_left, pad_right)))
     spec = audax.core.stft.stft(y,n_fft_new,hop_length_new,win_size_new,hann_window,onesided=True,center=False)
     spec = jnp.sqrt(spec.real**2 + spec.imag**2 + (1e-9))
@@ -98,6 +170,7 @@ class HFParseAudioFeatures(grain.MapTransform):
     return {
         "audio": np.asarray(audio_44k, dtype=np.float32),
         "text": np.asarray(features["text"], dtype=np.int32),
+        "speaker_id": np.asarray(features["speaker"], dtype=np.int32),
     }   
 
 class PadToMaxLength(grain.MapTransform):
@@ -111,14 +184,14 @@ class PadToMaxLength(grain.MapTransform):
         "audio": padded_audio,
         "audio_length":audio_length,
         "text": padded_text,
-        "text_length":text_length
+        "text_length":text_length,
+        "speaker_id": data["speaker_id"],
     }
+
 if __name__ == "__main__":
     if DEVICE == "tpu":
         jax.distributed.initialize()
-        device_mesh = mesh_utils.create_device_mesh((4, 1))
-    else:
-        device_mesh = mesh_utils.create_device_mesh((1, 1))
+    device_mesh = mesh_utils.create_device_mesh((jax.device_count(), 1))
     mesh = Mesh(device_mesh, axis_names=("data", "model")) 
     dataset = datasets.load_dataset(
         "MikhailT/hifi-tts",
@@ -128,11 +201,7 @@ if __name__ == "__main__":
     )
     cl100k_base = tiktoken.get_encoding("cl100k_base")
 
-    # In production, load the arguments directly instead of accessing private attributes
-    # See openai_public.py for examples of arguments for specific encodings
     enc = tiktoken.Encoding(
-        # If you're changing the set of special tokens, make sure to use a different name
-        # It should be clear from the name what behaviour to expect.
         name="cl100k_im",
         pat_str=cl100k_base._pat_str,
         mergeable_ranks=cl100k_base._mergeable_ranks,
@@ -146,11 +215,9 @@ if __name__ == "__main__":
 
 
     def process(example):
-        # 使用 tiktoken 分词
         ids = enc.encode(text=example["text_normalized"])
         
         return {'input_ids': ids}
-        #return ids
     dataset = dataset.map(process)
     
     def get_sharding_for_spec(pspec: PartitionSpec) -> NamedSharding:
@@ -160,11 +227,10 @@ if __name__ == "__main__":
         """
         return NamedSharding(mesh, pspec)
 
-    dataset = dataset.select_columns(["input_ids","audio"]).rename_column("input_ids", "text")
-    #dataset = dataset.to_iterable_dataset()
+    dataset = dataset.select_columns(["input_ids","audio","speaker"]).rename_column("input_ids", "text")
     dataset = _input_pipeline_utils.HFDataSource(dataset,
-                                                0,
-                                                1,
+                                                jax.process_index(),
+                                                jax.process_count(),
                                                 1,
                                                 False,
                                                 15000,
@@ -193,7 +259,7 @@ if __name__ == "__main__":
     )
     
 
-    #multihost_gen = multihost_dataloading.MultiHostDataLoadIterator(dataloader, mesh)
+    multihost_gen = multihost_dataloading.MultiHostDataLoadIterator(dataloader, mesh)
     fcpe_model,fcpe_params = jax_fcpe.load_model()
     fcpe_params = FrozenDict(fcpe_params)
     
@@ -201,13 +267,16 @@ if __name__ == "__main__":
     i = 0
     writer = None
     x_sharding = get_sharding_for_spec(PartitionSpec("data"))
-    for item in dataloader:
-        print(f"round {i}")
-        if i%10240 == 0:
-            num = i//10240
-            if writer is not None:
-                writer.close() 
-            writer = ArrayRecordWriter(f"/dev/shm/dataset/hifi_tts_train_part_{num}.arrayrecord", 'group_size:1')
+    outputs = []
+    for item in multihost_gen:
+        
+        if jax.process_index() == 0:
+            print(f"round {i}")
+            if i%10240 == 0:
+                num = i//10240
+                if writer is not None:
+                    writer.close() 
+                writer = ArrayRecordWriter(f"/dev/shm/dataset2/hifi_tts_train_part_{num}.arrayrecord", 'group_size:1')
             
         mel_arr  = jax.jit(get_mel, in_shardings=x_sharding,out_shardings=x_sharding)(item["audio"])
         audio_16k = librosa.resample(item["audio"], orig_sr=SOURCE_SAMPLERATE, target_sr=16000)
@@ -219,6 +288,7 @@ if __name__ == "__main__":
             n_frames = item["audio_length"][k]//512
             text_length = item["text_length"][k]
             text_tokens = item["text"][k][:text_length]
+            speaker_id = item["speaker_id"][k]
             mel_slice = mel_arr[k,:,:n_frames]
             f0_slice = f0_arr[k,:n_frames].transpose(1,0)
             mel_slice = np.concatenate((mel_slice,f0_slice),axis=0)
@@ -255,28 +325,32 @@ if __name__ == "__main__":
                     codes[book_idx].append(j)
             for book in codes:
                 book.extend([MEL_PAD_TOKEN_ID] * 1)
+            if jax.process_index() == 0:
+                tokens = np.asarray(tokens)
+                codes = np.asarray(codes)
+                mel = codes[:-1]
+                f0 = codes[-1]
+                f0 = f0_to_coarse_numpy(f0)
+                single_output = Output(tokens,mel,f0,tokens.shape[0],speaker_id)
+                outputs.append(single_output)
 
-            #tokens = [tokens] + codes
-            tokens = np.asarray(tokens)
-            codes = np.asarray(codes)
-            mel = codes[:-1]
-            f0 = codes[-1]
-            f0 = f0_to_coarse_numpy(f0)
             i+=1
-            example = tf.train.Example(
-                    features=tf.train.Features(
-                        feature={
-                            'tokens': tf.train.Feature(
-                                bytes_list=tf.train.BytesList(value=[tf.io.serialize_tensor(tokens).numpy()])),
-                            'mel': tf.train.Feature(
-                                bytes_list=tf.train.BytesList(value=[tf.io.serialize_tensor(mel).numpy()])),
-                            'f0':tf.train.Feature(
-                                bytes_list=tf.train.BytesList(value=[tf.io.serialize_tensor(f0).numpy()])),
-                            # 'prompt_length':tf.train.Feature(
-                            #    int64_list=tf.train.Int64List(value=[prompt_length])
-                            # )
-                        }
+        if jax.process_index() == 0:
+            packed = first_fit_pack(outputs)
+            merged = merge_packed_outputs(packed)
+            for merged_pack in merged:
+                example = tf.train.Example(
+                        features=tf.train.Features(
+                            feature={
+                                'tokens': tf.train.Feature(
+                                    bytes_list=tf.train.BytesList(value=[tf.io.serialize_tensor(merged_pack.tokens).numpy()])),
+                                'mel': tf.train.Feature(
+                                    bytes_list=tf.train.BytesList(value=[tf.io.serialize_tensor(merged_pack.mel).numpy()])),
+                                'f0':tf.train.Feature(
+                                    bytes_list=tf.train.BytesList(value=[tf.io.serialize_tensor(merged_pack.f0).numpy()])),
+                            }
+                        )
                     )
-                )
-            writer.write(example.SerializeToString())
-    writer.close() 
+                
+                writer.write(example.SerializeToString())
+    #writer.close() 
