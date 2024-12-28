@@ -350,7 +350,7 @@ if __name__ == "__main__":
             #single_output = Output(tokens,mel,f0,tokens.shape[0],speaker_id)
             #outputs.append(single_output)
 
-            i+=1
+            iter_count+=1
             
             #if jax.process_index() == 0:
             #print(f"round {i}",flush=True)
