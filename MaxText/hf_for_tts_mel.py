@@ -20,6 +20,8 @@ from flax.core import FrozenDict, copy
 from collections import Counter
 import os
 from array_record.python.array_record_module import ArrayRecordWriter
+from jax.experimental.compilation_cache import compilation_cache as cc
+cc.set_cache_dir("/tmp/jax_cache")
 DEVICE = "tpu"
 MAX_LENGTH_AUDIO_44K = 30 * 44100
 MAX_LENGTH_AUDIO_16K = 30 * 16000
@@ -291,9 +293,9 @@ if __name__ == "__main__":
         f0_arr = jax.jit(partial(jax_fcpe.get_f0,sr=16000,model=fcpe_model,params=fcpe_params), in_shardings=x_sharding,out_shardings=out_sharding)(item["audio_16k"])
         f0_arr = jax.image.resize(f0_arr,shape=(f0_arr.shape[0],mel_arr.shape[-1],1),method="nearest")
         if jax.process_index() == 0:
-            mel_arr = jax.device_get(jax.device_put(mel_arr),jax.devices("cpu")[0])
+            mel_arr = jax.device_get(mel_arr)
             f0_arr = jax.device_get(f0_arr)
-            text_arr = jax.device_get(item["text"])
+            text_arr = jax.device_get(jax.device_put(item["text"],out_sharding))
             for k in range(PER_DEVICE_BATCH_SIZE * jax.device_count()):
                 n_frames = item["audio_length"][k]//512
                 text_length = item["text_length"][k]
