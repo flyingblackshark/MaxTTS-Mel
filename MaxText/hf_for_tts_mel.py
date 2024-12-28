@@ -201,12 +201,19 @@ if __name__ == "__main__":
     jax.distributed.initialize()
     device_mesh = mesh_utils.create_device_mesh((jax.device_count(),))
     mesh = Mesh(device_mesh, axis_names=("data")) 
-    dataset = datasets.load_dataset(
+    ds1 = datasets.load_dataset(
         "MikhailT/hifi-tts",
-        name="clean",
-        split="train",
+        name="all",
+        split="train.clean",
         streaming=True,
     )
+    ds2 = datasets.load_dataset(
+        "MikhailT/hifi-tts",
+        name="all",
+        split="train.other",
+        streaming=True,
+    )
+    dataset = datasets.concatenate_datasets([ds1,ds2])
     cl100k_base = tiktoken.get_encoding("cl100k_base")
 
     enc = tiktoken.Encoding(
@@ -251,7 +258,7 @@ if __name__ == "__main__":
       num_records=len(dataset),
       num_epochs=1,
       shard_options=grain.ShardOptions(
-          shard_index=0, shard_count=1, drop_remainder=True
+          shard_index=jax.process_index(), shard_count=jax.process_count(), drop_remainder=True
       ),
       shuffle=False,
       seed=0,
