@@ -293,9 +293,9 @@ if __name__ == "__main__":
         f0_arr = jax.jit(partial(jax_fcpe.get_f0,sr=16000,model=fcpe_model,params=fcpe_params), in_shardings=x_sharding,out_shardings=out_sharding)(item["audio_16k"])
         f0_arr = jax.image.resize(f0_arr,shape=(f0_arr.shape[0],mel_arr.shape[-1],1),method="nearest")
         text_arr = jax.device_put(item["text"],out_sharding)
-        mel_arr = jax.device_get(mel_arr)
-        f0_arr = jax.device_get(f0_arr)
-        text_arr = jax.device_get(text_arr)
+        # mel_arr = jax.device_get(mel_arr)
+        # f0_arr = jax.device_get(f0_arr)
+        # text_arr = jax.device_get(text_arr)
         if jax.process_index() == 0:
             # mel_arr = jax.device_get(mel_arr)
             # f0_arr = jax.device_get(f0_arr)
