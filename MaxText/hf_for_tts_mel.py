@@ -273,6 +273,7 @@ if __name__ == "__main__":
     i = 0
     writer = None
     x_sharding = get_sharding_for_spec(PartitionSpec("data"))
+    out_sharding = get_sharding_for_spec(PartitionSpec(None))
     outputs = []
     os.makedirs("/dev/shm/dataset2/",exist_ok=True)
     for item in multihost_gen:
@@ -285,13 +286,12 @@ if __name__ == "__main__":
                     writer.close() 
                 writer = ArrayRecordWriter(f"/dev/shm/dataset2/hifi_tts_train_part_{num}.arrayrecord", 'group_size:1')
             
-        mel_arr  = jax.jit(get_mel, in_shardings=x_sharding,out_shardings=(None,))(item["audio_44k"])
+        mel_arr  = jax.jit(get_mel, in_shardings=x_sharding,out_shardings=out_sharding)(item["audio_44k"])
         
-        f0_arr = jax.jit(partial(jax_fcpe.get_f0,sr=16000,model=fcpe_model,params=fcpe_params), in_shardings=x_sharding,out_shardings=(None,))(item["audio_16k"])
+        f0_arr = jax.jit(partial(jax_fcpe.get_f0,sr=16000,model=fcpe_model,params=fcpe_params), in_shardings=x_sharding,out_shardings=out_sharding)(item["audio_16k"])
         f0_arr = jax.image.resize(f0_arr,shape=(f0_arr.shape[0],mel_arr.shape[-1],1),method="nearest")
         if jax.process_index() == 0:
-            mel_arr = np.asarray(mel_arr)
-            f0_arr = np.asarray(f0_arr)
+
             for k in range(PER_DEVICE_BATCH_SIZE * jax.device_count()):
                 n_frames = item["audio_length"][k]//512
                 text_length = item["text_length"][k]
@@ -299,6 +299,8 @@ if __name__ == "__main__":
                 speaker_id = item["speaker_id"][k]
                 mel_slice = mel_arr[k,:,:n_frames]
                 f0_slice = f0_arr[k,:n_frames].transpose(1,0)
+                mel_arr = np.asarray(mel_arr)
+                f0_arr = np.asarray(f0_arr)
                 mel_slice = np.concatenate((mel_slice,f0_slice),axis=0)
 
 
