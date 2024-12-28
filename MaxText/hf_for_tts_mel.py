@@ -278,9 +278,11 @@ if __name__ == "__main__":
     out_sharding = get_sharding_for_spec(PartitionSpec(None))
     
     os.makedirs("/dev/shm/dataset2/",exist_ok=True)
+    j = 0 
     for item in multihost_gen:
         #if jax.process_index() == 0:
-        print(f"round {i}",flush=True)
+        j+=1
+        print(f"batch {j} round {i}",flush=True)
         if i%10240 == 0:
             print(f"round {i}",flush=True)
             num = i//10240
