@@ -293,10 +293,11 @@ if __name__ == "__main__":
         if jax.process_index() == 0:
             mel_arr = jax.device_get(mel_arr)
             f0_arr = jax.device_get(f0_arr)
+            text_arr = jax.device_get(item["text"])
             for k in range(PER_DEVICE_BATCH_SIZE * jax.device_count()):
                 n_frames = item["audio_length"][k]//512
                 text_length = item["text_length"][k]
-                text_tokens = item["text"][k][:text_length]
+                text_tokens = text_arr[k][:text_length]
                 speaker_id = item["speaker_id"][k]
                 
                 mel_slice = mel_arr[k,:,:n_frames]
