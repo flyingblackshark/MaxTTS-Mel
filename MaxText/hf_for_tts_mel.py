@@ -279,9 +279,8 @@ if __name__ == "__main__":
     outputs = []
     os.makedirs("/dev/shm/dataset2/",exist_ok=True)
     for item in multihost_gen:
-        
-        #if jax.process_index() == 0:
-        print(f"round {i}",flush=True)
+        if jax.process_index() == 0:
+            print(f"round {i}",flush=True)
         if i%10240 == 0:
             num = i//10240
             if writer is not None:
@@ -293,13 +292,6 @@ if __name__ == "__main__":
         f0_arr = jax.jit(partial(jax_fcpe.get_f0,sr=16000,model=fcpe_model,params=fcpe_params), in_shardings=x_sharding,out_shardings=out_sharding)(item["audio_16k"])
         f0_arr = jax.image.resize(f0_arr,shape=(f0_arr.shape[0],mel_arr.shape[-1],1),method="nearest")
         text_arr = jax.device_put(item["text"],out_sharding)
-        # mel_arr = jax.device_get(mel_arr)
-        # f0_arr = jax.device_get(f0_arr)
-        # text_arr = jax.device_get(text_arr)
-        
-            # mel_arr = jax.device_get(mel_arr)
-            # f0_arr = jax.device_get(f0_arr)
-            # text_arr = jax.device_get(text_arr)
         for k in range(PER_DEVICE_BATCH_SIZE * jax.device_count()):
             n_frames = item["audio_length"][k]//512
             text_length = int(item["text_length"][k])
@@ -352,7 +344,9 @@ if __name__ == "__main__":
             outputs.append(single_output)
 
             i+=1
-            print(f"round {i}",flush=True)
+            
+            if jax.process_index() == 0:
+                print(f"round {i}",flush=True)
             # packed = first_fit_pack(outputs)
             # merged = merge_packed_outputs(packed)
         #if jax.process_index() == 0:
