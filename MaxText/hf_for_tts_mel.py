@@ -276,7 +276,7 @@ if __name__ == "__main__":
     writer = None
     x_sharding = get_sharding_for_spec(PartitionSpec("data"))
     out_sharding = get_sharding_for_spec(PartitionSpec(None))
-    outputs = []
+    
     os.makedirs("/dev/shm/dataset2/",exist_ok=True)
     for item in multihost_gen:
         if jax.process_index() == 0:
@@ -292,6 +292,7 @@ if __name__ == "__main__":
         f0_arr = jax.jit(partial(jax_fcpe.get_f0,sr=16000,model=fcpe_model,params=fcpe_params), in_shardings=x_sharding,out_shardings=out_sharding)(item["audio_16k"])
         f0_arr = jax.image.resize(f0_arr,shape=(f0_arr.shape[0],mel_arr.shape[-1],1),method="nearest")
         text_arr = jax.device_put(item["text"],out_sharding)
+        outputs = []
         for k in range(PER_DEVICE_BATCH_SIZE * jax.device_count()):
             n_frames = item["audio_length"][k]//512
             text_length = int(item["text_length"][k])
