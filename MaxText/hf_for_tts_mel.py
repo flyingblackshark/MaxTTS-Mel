@@ -246,7 +246,7 @@ if __name__ == "__main__":
     operations = []
     operations.append(HFParseAudioFeatures())
     operations.append(PadToMaxLength())
-    operations.append(grain.Batch(batch_size=PER_DEVICE_BATCH_SIZE * jax.device_count(), drop_remainder=True))
+    operations.append(grain.Batch(batch_size=PER_DEVICE_BATCH_SIZE * jax.device_count() // jax.process_count(), drop_remainder=True))
     dummy_index_sampler = grain.IndexSampler(
       num_records=len(dataset),
       num_epochs=1,
@@ -281,7 +281,7 @@ if __name__ == "__main__":
     j = 0 
     for item in multihost_gen:
         #if jax.process_index() == 0:
-        j+=1
+        j += 1
         print(f"batch {j} round {i}",flush=True)
         if i%10240 == 0:
             print(f"round {i}",flush=True)
@@ -296,9 +296,10 @@ if __name__ == "__main__":
         f0_arr = jax.image.resize(f0_arr,shape=(f0_arr.shape[0],mel_arr.shape[-1],1),method="nearest")
         text_arr = jax.device_put(item["text"],out_sharding)
 
-        slice_size = PER_DEVICE_BATCH_SIZE * jax.device_count() // jax.process_count()
+        #slice_size = PER_DEVICE_BATCH_SIZE * jax.device_count() // jax.process_count()
 
-        for k in range(slice_size*jax.process_index(),slice_size*(jax.process_index()+1)):
+        #for k in range(slice_size*jax.process_index(),slice_size*(jax.process_index()+1)):
+        for k in range(PER_DEVICE_BATCH_SIZE * jax.device_count() // jax.process_count()):
             n_frames = item["audio_length"][k]//512
             text_length = int(item["text_length"][k])
             text_tokens = text_arr[k][:text_length]
