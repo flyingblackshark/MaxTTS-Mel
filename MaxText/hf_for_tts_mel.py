@@ -272,20 +272,20 @@ if __name__ == "__main__":
     fcpe_params = FrozenDict(fcpe_params)
     
     MEL_PAD_TOKEN_ID = 0
-    i = 0
+    iter_count = 0
     writer = None
     x_sharding = get_sharding_for_spec(PartitionSpec("data"))
     out_sharding = get_sharding_for_spec(PartitionSpec(None))
     
     os.makedirs("/dev/shm/dataset2/",exist_ok=True)
-    j = 0 
+    batch_count = 0 
     for item in multihost_gen:
         #if jax.process_index() == 0:
-        j += 1
-        print(f"batch {j} round {i}",flush=True)
-        if i%10240 == 0:
-            print(f"round {i}",flush=True)
-            num = i//10240
+        batch_count += 1
+        print(f"batch {batch_count} round {iter_count}",flush=True)
+        if iter_count%10240 == 0:
+            print(f"round {iter_count}",flush=True)
+            num = iter_count//10240
             if writer is not None:
                 writer.close() 
             writer = ArrayRecordWriter(f"/dev/shm/dataset2/hifi_tts_train_part_{num}-shared-{jax.process_index()}.arrayrecord", 'group_size:1')
