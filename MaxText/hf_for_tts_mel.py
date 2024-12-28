@@ -282,60 +282,59 @@ if __name__ == "__main__":
         audio_16k = librosa.resample(item["audio"], orig_sr=SOURCE_SAMPLERATE, target_sr=16000)
         f0_arr = jax.jit(partial(jax_fcpe.get_f0,sr=16000,model=fcpe_model,params=fcpe_params), in_shardings=x_sharding,out_shardings=x_sharding)(audio_16k)
         f0_arr = jax.image.resize(f0_arr,shape=(f0_arr.shape[0],mel_arr.shape[-1],1),method="nearest")
-        mel_arr = np.asarray(mel_arr)
-        f0_arr = np.asarray(f0_arr)
-        for k in range(PER_DEVICE_BATCH_SIZE * jax.device_count()):
-            n_frames = item["audio_length"][k]//512
-            text_length = item["text_length"][k]
-            text_tokens = item["text"][k][:text_length]
-            speaker_id = item["speaker_id"][k]
-            mel_slice = mel_arr[k,:,:n_frames]
-            f0_slice = f0_arr[k,:n_frames].transpose(1,0)
-            mel_slice = np.concatenate((mel_slice,f0_slice),axis=0)
+        if jax.process_index() == 0:
+            mel_arr = np.asarray(mel_arr)
+            f0_arr = np.asarray(f0_arr)
+            for k in range(PER_DEVICE_BATCH_SIZE * jax.device_count()):
+                n_frames = item["audio_length"][k]//512
+                text_length = item["text_length"][k]
+                text_tokens = item["text"][k][:text_length]
+                speaker_id = item["speaker_id"][k]
+                mel_slice = mel_arr[k,:,:n_frames]
+                f0_slice = f0_arr[k,:n_frames].transpose(1,0)
+                mel_slice = np.concatenate((mel_slice,f0_slice),axis=0)
 
 
-            string_prefix = "<|im_start|>user\n"
-            string_suffix = "<|im_end|><|im_start|>assistant\n"
+                string_prefix = "<|im_start|>user\n"
+                string_suffix = "<|im_end|><|im_start|>assistant\n"
 
-            encoded_prefix = enc.encode(
-                string_prefix,
-                allowed_special={"<|im_start|>","<|im_end|>"}
-            )
+                encoded_prefix = enc.encode(
+                    string_prefix,
+                    allowed_special={"<|im_start|>","<|im_end|>"}
+                )
 
-            encoded_suffix = enc.encode(
-                string_suffix,
-                allowed_special={"<|im_start|>","<|im_end|>"}
-            )
+                encoded_suffix = enc.encode(
+                    string_suffix,
+                    allowed_special={"<|im_start|>","<|im_end|>"}
+                )
 
-            encoded = encoded_prefix + np.asarray(text_tokens).tolist() + encoded_suffix
-            mel_dim = 129
+                encoded = encoded_prefix + np.asarray(text_tokens).tolist() + encoded_suffix
+                mel_dim = 129
 
-            mel_token_id = enc.encode_single_token("<|semantic|>")
-            mel_length = mel_slice.shape[1]
-            tokens = (
-                encoded
-                + [mel_token_id] * mel_length
-                + [enc.encode_single_token("<|im_end|>")]
-            )
-            prompt_length = len(encoded)
+                mel_token_id = enc.encode_single_token("<|semantic|>")
+                mel_length = mel_slice.shape[1]
+                tokens = (
+                    encoded
+                    + [mel_token_id] * mel_length
+                    + [enc.encode_single_token("<|im_end|>")]
+                )
+                prompt_length = len(encoded)
 
-            codes = [[MEL_PAD_TOKEN_ID] * prompt_length for _ in range(mel_dim)]
-            for book_idx, book in zip(range(mel_dim), mel_slice):
-                for j in book:
-                    codes[book_idx].append(j)
-            for book in codes:
-                book.extend([MEL_PAD_TOKEN_ID] * 1)
-            if jax.process_index() == 0:
-                tokens = np.asarray(tokens)
-                codes = np.asarray(codes)
-                mel = codes[:-1]
-                f0 = codes[-1]
-                f0 = f0_to_coarse_numpy(f0)
-                single_output = Output(tokens,mel,f0,tokens.shape[0],speaker_id)
-                outputs.append(single_output)
+                codes = [[MEL_PAD_TOKEN_ID] * prompt_length for _ in range(mel_dim)]
+                for book_idx, book in zip(range(mel_dim), mel_slice):
+                    for j in book:
+                        codes[book_idx].append(j)
+                for book in codes:
+                    book.extend([MEL_PAD_TOKEN_ID] * 1)
+                    tokens = np.asarray(tokens)
+                    codes = np.asarray(codes)
+                    mel = codes[:-1]
+                    f0 = codes[-1]
+                    f0 = f0_to_coarse_numpy(f0)
+                    single_output = Output(tokens,mel,f0,tokens.shape[0],speaker_id)
+                    outputs.append(single_output)
 
             i+=1
-        if jax.process_index() == 0:
             packed = first_fit_pack(outputs)
             merged = merge_packed_outputs(packed)
             for merged_pack in merged:
