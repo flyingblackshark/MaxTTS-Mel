@@ -18,6 +18,7 @@ import audax.core.stft
 import jax_fcpe
 from flax.core import FrozenDict, copy
 from collections import Counter
+import os
 from array_record.python.array_record_module import ArrayRecordWriter
 DEVICE = "tpu"
 MAX_LENGTH_AUDIO_44K = 30 * 44100
@@ -273,6 +274,7 @@ if __name__ == "__main__":
     writer = None
     x_sharding = get_sharding_for_spec(PartitionSpec("data"))
     outputs = []
+    os.makedirs("/dev/shm/dataset2/",exist_ok=True)
     for item in multihost_gen:
         
         if jax.process_index() == 0:
