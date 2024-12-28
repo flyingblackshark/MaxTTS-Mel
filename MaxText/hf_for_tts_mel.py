@@ -296,7 +296,7 @@ if __name__ == "__main__":
         #outputs = []
         slice_size = PER_DEVICE_BATCH_SIZE * jax.device_count() // jax.process_count()
         #for merged_pack in outputs[slice_size*jax.process_count():slice_size*(jax.process_count()+1)]:
-        for k in range(start=slice_size*jax.process_count(),stop=slice_size*(jax.process_count()+1),step=1):
+        for k in range(slice_size*jax.process_count(),slice_size*(jax.process_count()+1)):
             n_frames = item["audio_length"][k]//512
             text_length = int(item["text_length"][k])
             text_tokens = text_arr[k][:text_length]
