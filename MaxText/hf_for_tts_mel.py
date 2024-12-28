@@ -4,7 +4,7 @@ import datasets
 import grain.python as grain
 import multihost_dataloading
 from input_pipeline import _input_pipeline_utils
-from jax.experimental import mesh_utils
+from jax.experimental import mesh_utils,multihost_utils
 from jax.sharding import Mesh, NamedSharding, PartitionSpec
 from functools import partial
 import librosa
@@ -291,7 +291,7 @@ if __name__ == "__main__":
         f0_arr = jax.jit(partial(jax_fcpe.get_f0,sr=16000,model=fcpe_model,params=fcpe_params), in_shardings=x_sharding,out_shardings=out_sharding)(item["audio_16k"])
         f0_arr = jax.image.resize(f0_arr,shape=(f0_arr.shape[0],mel_arr.shape[-1],1),method="nearest")
         if jax.process_index() == 0:
-            mel_arr = jax.device_get(mel_arr)
+            mel_arr = multihost_utils.process_allgather(mel_arr)
             f0_arr = jax.device_get(f0_arr)
             text_arr = jax.device_get(item["text"])
             for k in range(PER_DEVICE_BATCH_SIZE * jax.device_count()):
