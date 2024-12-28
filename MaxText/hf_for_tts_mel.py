@@ -280,13 +280,13 @@ if __name__ == "__main__":
     os.makedirs("/dev/shm/dataset2/",exist_ok=True)
     for item in multihost_gen:
         
-        if jax.process_index() == 0:
-            print(f"round {i}",flush=True)
-            if i%10240 == 0:
-                num = i//10240
-                if writer is not None:
-                    writer.close() 
-                writer = ArrayRecordWriter(f"/dev/shm/dataset2/hifi_tts_train_part_{num}.arrayrecord", 'group_size:1')
+        #if jax.process_index() == 0:
+        print(f"round {i}",flush=True)
+        if i%10240 == 0:
+            num = i//10240
+            if writer is not None:
+                writer.close() 
+            writer = ArrayRecordWriter(f"/dev/shm/dataset2/hifi_tts_train_part_{num}-shared-{jax.process_index()}.arrayrecord", 'group_size:1')
             
         mel_arr  = jax.jit(get_mel, in_shardings=x_sharding,out_shardings=out_sharding)(item["audio_44k"])
         
@@ -353,22 +353,23 @@ if __name__ == "__main__":
 
             i+=1
             print(f"round {i}",flush=True)
-            packed = first_fit_pack(outputs)
-            merged = merge_packed_outputs(packed)
-        if jax.process_index() == 0:
-            for merged_pack in merged:
-                example = tf.train.Example(
-                        features=tf.train.Features(
-                            feature={
-                                'tokens': tf.train.Feature(
-                                    bytes_list=tf.train.BytesList(value=[tf.io.serialize_tensor(merged_pack.tokens).numpy()])),
-                                'mel': tf.train.Feature(
-                                    bytes_list=tf.train.BytesList(value=[tf.io.serialize_tensor(merged_pack.mel).numpy()])),
-                                'f0':tf.train.Feature(
-                                    bytes_list=tf.train.BytesList(value=[tf.io.serialize_tensor(merged_pack.f0).numpy()])),
-                            }
-                        )
+            # packed = first_fit_pack(outputs)
+            # merged = merge_packed_outputs(packed)
+        #if jax.process_index() == 0:
+        slice_size = PER_DEVICE_BATCH_SIZE * jax.device_count() // jax.process_count()
+        for merged_pack in outputs[slice_size*jax.process_count():slice_size*(jax.process_count()+1)]:
+            example = tf.train.Example(
+                    features=tf.train.Features(
+                        feature={
+                            'tokens': tf.train.Feature(
+                                bytes_list=tf.train.BytesList(value=[tf.io.serialize_tensor(merged_pack.tokens).numpy()])),
+                            'mel': tf.train.Feature(
+                                bytes_list=tf.train.BytesList(value=[tf.io.serialize_tensor(merged_pack.mel).numpy()])),
+                            'f0':tf.train.Feature(
+                                bytes_list=tf.train.BytesList(value=[tf.io.serialize_tensor(merged_pack.f0).numpy()])),
+                        }
                     )
-                
-                writer.write(example.SerializeToString())
+                )
+            
+            writer.write(example.SerializeToString())
     #writer.close() 
