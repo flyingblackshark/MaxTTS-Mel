@@ -22,7 +22,7 @@ from array_record.python.array_record_module import ArrayRecordWriter
 DEVICE = "tpu"
 MAX_LENGTH_AUDIO = 30 * 44100
 MAX_LENGTH_TEXT = 10000
-GLOBAL_BATCH_SIZE = 64
+PER_DEVICE_BATCH_SIZE = 16
 SOURCE_SAMPLERATE = 44100
 @dataclass
 class Output:
@@ -238,7 +238,7 @@ if __name__ == "__main__":
     operations = []
     operations.append(HFParseAudioFeatures())
     operations.append(PadToMaxLength())
-    operations.append(grain.Batch(batch_size=GLOBAL_BATCH_SIZE, drop_remainder=True))
+    operations.append(grain.Batch(batch_size=PER_DEVICE_BATCH_SIZE * jax.device_count(), drop_remainder=True))
     dummy_index_sampler = grain.IndexSampler(
       num_records=len(dataset),
       num_epochs=1,
@@ -284,7 +284,7 @@ if __name__ == "__main__":
         f0_arr = jax.image.resize(f0_arr,shape=(f0_arr.shape[0],mel_arr.shape[-1],1),method="nearest")
         mel_arr = np.asarray(mel_arr)
         f0_arr = np.asarray(f0_arr)
-        for k in range(GLOBAL_BATCH_SIZE):
+        for k in range(PER_DEVICE_BATCH_SIZE * jax.device_count()):
             n_frames = item["audio_length"][k]//512
             text_length = item["text_length"][k]
             text_tokens = item["text"][k][:text_length]
