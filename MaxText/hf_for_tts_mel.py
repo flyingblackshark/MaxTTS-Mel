@@ -297,8 +297,11 @@ if __name__ == "__main__":
                 text_length = item["text_length"][k]
                 text_tokens = item["text"][k][:text_length]
                 speaker_id = item["speaker_id"][k]
+                
                 mel_slice = mel_arr[k,:,:n_frames]
                 f0_slice = f0_arr[k,:n_frames].transpose(1,0)
+                mel_arr = jax.device_put(mel_arr,jax.devices('cpu')[0])
+                f0_arr = jax.device_put(f0_arr,jax.devices('cpu')[0])
                 mel_arr = np.asarray(mel_arr)
                 f0_arr = np.asarray(f0_arr)
                 mel_slice = np.concatenate((mel_slice,f0_slice),axis=0)
