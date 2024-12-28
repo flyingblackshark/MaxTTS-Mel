@@ -293,10 +293,10 @@ if __name__ == "__main__":
         f0_arr = jax.jit(partial(jax_fcpe.get_f0,sr=16000,model=fcpe_model,params=fcpe_params), in_shardings=x_sharding,out_shardings=out_sharding)(item["audio_16k"])
         f0_arr = jax.image.resize(f0_arr,shape=(f0_arr.shape[0],mel_arr.shape[-1],1),method="nearest")
         text_arr = jax.device_put(item["text"],out_sharding)
-        #outputs = []
+
         slice_size = PER_DEVICE_BATCH_SIZE * jax.device_count() // jax.process_count()
-        #for merged_pack in outputs[slice_size*jax.process_count():slice_size*(jax.process_count()+1)]:
-        for k in range(slice_size*jax.process_count(),slice_size*(jax.process_count()+1)):
+
+        for k in range(slice_size*jax.process_index(),slice_size*(jax.process_index()+1)):
             n_frames = item["audio_length"][k]//512
             text_length = int(item["text_length"][k])
             text_tokens = text_arr[k][:text_length]
