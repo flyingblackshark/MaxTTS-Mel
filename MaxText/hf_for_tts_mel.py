@@ -280,8 +280,9 @@ if __name__ == "__main__":
     os.makedirs("/dev/shm/dataset2/",exist_ok=True)
     for item in multihost_gen:
         #if jax.process_index() == 0:
-        print(f"round {i}",flush=True)
+        
         if i%10240 == 0:
+            print(f"round {i}",flush=True)
             num = i//10240
             if writer is not None:
                 writer.close() 
@@ -292,8 +293,10 @@ if __name__ == "__main__":
         f0_arr = jax.jit(partial(jax_fcpe.get_f0,sr=16000,model=fcpe_model,params=fcpe_params), in_shardings=x_sharding,out_shardings=out_sharding)(item["audio_16k"])
         f0_arr = jax.image.resize(f0_arr,shape=(f0_arr.shape[0],mel_arr.shape[-1],1),method="nearest")
         text_arr = jax.device_put(item["text"],out_sharding)
-        outputs = []
-        for k in range(PER_DEVICE_BATCH_SIZE * jax.device_count()):
+        #outputs = []
+        slice_size = PER_DEVICE_BATCH_SIZE * jax.device_count() // jax.process_count()
+        #for merged_pack in outputs[slice_size*jax.process_count():slice_size*(jax.process_count()+1)]:
+        for k in range(start=slice_size*jax.process_count(),stop=slice_size*(jax.process_count()+1),step=1):
             n_frames = item["audio_length"][k]//512
             text_length = int(item["text_length"][k])
             text_tokens = text_arr[k][:text_length]
@@ -337,12 +340,12 @@ if __name__ == "__main__":
                 book.extend([MEL_PAD_TOKEN_ID] * 1)
             tokens = np.asarray(tokens)
             codes = np.asarray(codes)
-            speaker_id = np.asarray(speaker_id).tolist()
+            #speaker_id = np.asarray(speaker_id).tolist()
             mel = codes[:-1]
             f0 = codes[-1]
             f0 = f0_to_coarse_numpy(f0)
-            single_output = Output(tokens,mel,f0,tokens.shape[0],speaker_id)
-            outputs.append(single_output)
+            #single_output = Output(tokens,mel,f0,tokens.shape[0],speaker_id)
+            #outputs.append(single_output)
 
             i+=1
             
@@ -351,17 +354,18 @@ if __name__ == "__main__":
             # packed = first_fit_pack(outputs)
             # merged = merge_packed_outputs(packed)
         #if jax.process_index() == 0:
-        slice_size = PER_DEVICE_BATCH_SIZE * jax.device_count() // jax.process_count()
-        for merged_pack in outputs[slice_size*jax.process_count():slice_size*(jax.process_count()+1)]:
+
             example = tf.train.Example(
                     features=tf.train.Features(
                         feature={
                             'tokens': tf.train.Feature(
-                                bytes_list=tf.train.BytesList(value=[tf.io.serialize_tensor(merged_pack.tokens).numpy()])),
+                                bytes_list=tf.train.BytesList(value=[tf.io.serialize_tensor(tokens).numpy()])),
                             'mel': tf.train.Feature(
-                                bytes_list=tf.train.BytesList(value=[tf.io.serialize_tensor(merged_pack.mel).numpy()])),
+                                bytes_list=tf.train.BytesList(value=[tf.io.serialize_tensor(mel).numpy()])),
                             'f0':tf.train.Feature(
-                                bytes_list=tf.train.BytesList(value=[tf.io.serialize_tensor(merged_pack.f0).numpy()])),
+                                bytes_list=tf.train.BytesList(value=[tf.io.serialize_tensor(f0).numpy()])),
+                            'speaker_id':tf.train.Feature(
+                                bytes_list=tf.train.BytesList(value=[tf.io.serialize_tensor(speaker_id).numpy()])),
                         }
                     )
                 )
