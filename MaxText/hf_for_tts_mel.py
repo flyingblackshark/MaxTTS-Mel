@@ -279,7 +279,7 @@ if __name__ == "__main__":
     for item in multihost_gen:
         
         if jax.process_index() == 0:
-            print(f"round {i}")
+            print(f"round {i}",flush=True)
             if i%10240 == 0:
                 num = i//10240
                 if writer is not None:
@@ -346,6 +346,7 @@ if __name__ == "__main__":
                 outputs.append(single_output)
 
                 i+=1
+                print(f"round {i}",flush=True)
             packed = first_fit_pack(outputs)
             merged = merge_packed_outputs(packed)
             for merged_pack in merged:
