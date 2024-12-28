@@ -285,9 +285,9 @@ if __name__ == "__main__":
                     writer.close() 
                 writer = ArrayRecordWriter(f"/dev/shm/dataset2/hifi_tts_train_part_{num}.arrayrecord", 'group_size:1')
             
-        mel_arr  = jax.jit(get_mel, in_shardings=x_sharding,out_shardings=x_sharding)(item["audio_44k"])
+        mel_arr  = jax.jit(get_mel, in_shardings=x_sharding,out_shardings=(None,))(item["audio_44k"])
         
-        f0_arr = jax.jit(partial(jax_fcpe.get_f0,sr=16000,model=fcpe_model,params=fcpe_params), in_shardings=x_sharding,out_shardings=x_sharding)(item["audio_16k"])
+        f0_arr = jax.jit(partial(jax_fcpe.get_f0,sr=16000,model=fcpe_model,params=fcpe_params), in_shardings=x_sharding,out_shardings=(None,))(item["audio_16k"])
         f0_arr = jax.image.resize(f0_arr,shape=(f0_arr.shape[0],mel_arr.shape[-1],1),method="nearest")
         if jax.process_index() == 0:
             mel_arr = np.asarray(mel_arr)
