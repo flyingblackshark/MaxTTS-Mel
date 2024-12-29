@@ -285,7 +285,7 @@ if __name__ == "__main__":
             q.join()
             writer.close()
 
-    def writer_thread(q, writer):
+    def writer_thread(q, writer,exception_event):
         while True:
             try:
                 data = q.get(timeout=1)  # 设置超时，避免无限阻塞
@@ -304,7 +304,7 @@ if __name__ == "__main__":
     
     
     # 创建并启动写入线程
-    t = threading.Thread(target=writer_thread, args=(q, writer))
+    t = threading.Thread(target=writer_thread, args=(q, writer,exception_event))
     t.daemon = True  # 设置为守护线程，主线程退出时自动退出
     t.start()
     atexit.register(close_writer)
