@@ -21,6 +21,9 @@ from collections import Counter
 import os
 from array_record.python.array_record_module import ArrayRecordWriter
 from jax.experimental.compilation_cache import compilation_cache as cc
+import subprocess
+import shlex
+
 cc.set_cache_dir("/tmp/jax_cache")
 DEVICE = "tpu"
 MAX_LENGTH_AUDIO_44K = 30 * 44100
@@ -35,6 +38,53 @@ class Output:
     f0: np.ndarray
     length: int
     speaker_id: int
+
+def mount_gcs_bucket(bucket_name, mount_point):
+    """
+    挂载 GCS 存储桶到指定挂载点。
+
+    Args:
+        bucket_name: 要挂载的 GCS 存储桶的名称（不包括 gs:// 前缀）。
+        mount_point: 本地挂载点路径。
+    """
+
+    try:
+        # 1. 创建挂载点目录（如果不存在）
+        os.makedirs(mount_point, exist_ok=True)
+        print(f"已创建挂载点目录：{mount_point}")
+
+        # 2. 构建 gcsfuse 命令
+        gcsfuse_cmd = f"gcsfuse {bucket_name} {mount_point}"
+
+        # 添加 --implicit-dirs 选项以支持隐式目录
+        #gcsfuse_cmd += " --implicit-dirs"
+
+        # 建议添加 allow_other 选项，允许其他用户访问挂载点(如果需要)
+        # gcsfuse_cmd += " --allow-other"
+
+        # 使用 shlex.split 处理命令字符串，以正确处理空格和引号
+        args = shlex.split(gcsfuse_cmd)
+
+        # 3. 执行 gcsfuse 命令
+        process = subprocess.Popen(args, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+        stdout, stderr = process.communicate()
+
+        if process.returncode != 0:
+            raise RuntimeError(f"gcsfuse 挂载失败：{stderr.decode()}")
+
+        print(f"成功挂载存储桶 {bucket_name} 到 {mount_point}")
+
+    except OSError as e:
+        print(f"创建目录失败：{e}")
+        return False
+    except RuntimeError as e:
+        print(e)
+        return False
+    except FileNotFoundError:
+        print("gcsfuse 命令未找到。请确保已安装 gcsfuse。")
+        return False
+
+    return True
 # def first_fit_pack(outputs: List[Output], max_length: int = 10240):
 #     """
 #     使用 First-Fit 算法打包 Output 对象。
@@ -197,6 +247,14 @@ class PadToMaxLength(grain.MapTransform):
     }
 
 if __name__ == "__main__":
+    bucket_name = "fbs-us2"  # 替换为你的存储桶名称
+    home_dir = os.path.expanduser("~")
+    mount_point = os.path.join(home_dir, "bucket")
+
+    if mount_gcs_bucket(bucket_name, mount_point):
+        print("挂载完成。")
+    else:
+        print("挂载过程中发生错误。")
     #if DEVICE == "tpu":
     jax.distributed.initialize()
     device_mesh = mesh_utils.create_device_mesh((jax.device_count(),))
@@ -284,7 +342,7 @@ if __name__ == "__main__":
     x_sharding = get_sharding_for_spec(PartitionSpec("data"))
     out_sharding = get_sharding_for_spec(PartitionSpec(None))
     
-    os.makedirs("/dev/shm/dataset2/",exist_ok=True)
+    os.makedirs(os.path.join(mount_point,f"dataset2"),exist_ok=True)
     batch_count = 0 
     for item in multihost_gen:
         #if jax.process_index() == 0:
@@ -295,7 +353,7 @@ if __name__ == "__main__":
             num = iter_count//10240
             if writer is not None:
                 writer.close() 
-            writer = ArrayRecordWriter(f"/dev/shm/dataset2/hifi_tts_train_part_{num}-shared-{jax.process_index()}.arrayrecord", 'group_size:1')
+            writer = ArrayRecordWriter(os.path.join(mount_point,f"dataset2/hifi_tts_train_part_{num}-shared-{jax.process_index()}.arrayrecord"), 'group_size:1')
             
         mel_arr  = jax.jit(get_mel, in_shardings=x_sharding,out_shardings=out_sharding)(item["audio_44k"])
         
