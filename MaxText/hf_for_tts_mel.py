@@ -282,7 +282,7 @@ if __name__ == "__main__":
         if writer:
             q.put(None)
             #q.join()
-            sleep(30)
+            #sleep(30)
             writer.close()
 
     def writer_thread(q, writer):
