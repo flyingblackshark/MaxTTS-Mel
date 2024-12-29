@@ -301,7 +301,7 @@ if __name__ == "__main__":
     
     # 创建并启动写入线程
     t = threading.Thread(target=writer_thread, args=(q, writer))
-    t.daemon = False 
+    t.daemon = True 
     t.start()
     atexit.register(close_writer)
 
