@@ -1,4 +1,6 @@
 from dataclasses import dataclass
+import queue
+import threading
 from typing import List
 import datasets
 import grain.python as grain
@@ -272,12 +274,30 @@ if __name__ == "__main__":
     
     MEL_PAD_TOKEN_ID = 0
     iter_count = 0
-    writer = None
+    writer = ArrayRecordWriter(os.path.join(mount_point,f"dataset2/hifi_tts_train-shared-{jax.process_index()}.arrayrecord"), 'group_size:1')
+    #writer = None
     def close_writer():
         global writer
         if writer:
             writer.close()
 
+    def writer_thread(q, writer):
+        while True:
+            try:
+                data = q.get(timeout=1)  # 设置超时，避免无限阻塞
+                if data is None:  # 哨兵值，用于结束线程
+                    break
+                writer.write(data)
+                q.task_done()  # 标记任务完成
+            except queue.Empty:
+                continue
+
+    q = queue.Queue()
+
+    # 创建并启动写入线程
+    t = threading.Thread(target=writer_thread, args=(q, writer))
+    t.daemon = True  # 设置为守护线程，主线程退出时自动退出
+    t.start()
     atexit.register(close_writer)
 
     mel_x_sharding = get_sharding_for_spec(PartitionSpec("data"))
@@ -289,12 +309,12 @@ if __name__ == "__main__":
     for item in multihost_gen:
         batch_count += 1
         print(f"batch {batch_count} round {iter_count}",flush=True)
-        if iter_count%10240 == 0:
-            print(f"round {iter_count}",flush=True)
-            num = iter_count//10240
-            if writer is not None:
-                writer.close() 
-            writer = ArrayRecordWriter(os.path.join(mount_point,f"dataset2/hifi_tts_train_part_{num}-shared-{jax.process_index()}.arrayrecord"), 'group_size:1')
+        # if iter_count%10240 == 0:
+        #     print(f"round {iter_count}",flush=True)
+        #     num = iter_count//10240
+        #     if writer is not None:
+        #         writer.close() 
+        #     writer = ArrayRecordWriter(os.path.join(mount_point,f"dataset2/hifi_tts_train_part_{num}-shared-{jax.process_index()}.arrayrecord"), 'group_size:1')
             
         mel_arr  = jax.jit(get_mel, in_shardings=mel_x_sharding,out_shardings=out_sharding)(item["audio_44k"])
         @partial(jax.jit,in_shardings=(get_sharding_for_spec(PartitionSpec(None)),x_sharding),out_shardings=out_sharding)
@@ -361,19 +381,19 @@ if __name__ == "__main__":
             f0 = f0_to_coarse_numpy(f0)
             iter_count+=1
 
-            # example = tf.train.Example(
-            #         features=tf.train.Features(
-            #             feature={
-            #                 'tokens': tf.train.Feature(
-            #                     bytes_list=tf.train.BytesList(value=[tf.io.serialize_tensor(tokens).numpy()])),
-            #                 'mel': tf.train.Feature(
-            #                     bytes_list=tf.train.BytesList(value=[tf.io.serialize_tensor(mel).numpy()])),
-            #                 'f0':tf.train.Feature(
-            #                     bytes_list=tf.train.BytesList(value=[tf.io.serialize_tensor(f0).numpy()])),
-            #                 'speaker_id':tf.train.Feature(
-            #                     bytes_list=tf.train.BytesList(value=[tf.io.serialize_tensor(speaker_id).numpy()])),
-            #             }
-            #         )
-            #     )
-            
-            # writer.write(example.SerializeToString())
+            example = tf.train.Example(
+                    features=tf.train.Features(
+                        feature={
+                            'tokens': tf.train.Feature(
+                                bytes_list=tf.train.BytesList(value=[tf.io.serialize_tensor(tokens).numpy()])),
+                            'mel': tf.train.Feature(
+                                bytes_list=tf.train.BytesList(value=[tf.io.serialize_tensor(mel).numpy()])),
+                            'f0':tf.train.Feature(
+                                bytes_list=tf.train.BytesList(value=[tf.io.serialize_tensor(f0).numpy()])),
+                            'speaker_id':tf.train.Feature(
+                                bytes_list=tf.train.BytesList(value=[tf.io.serialize_tensor(speaker_id).numpy()])),
+                        }
+                    )
+                )
+            q.put(example.SerializeToString())
+            #writer.write(example.SerializeToString())
