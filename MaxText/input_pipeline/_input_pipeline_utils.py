@@ -104,7 +104,7 @@ class HFDataSource(grain.RandomAccessDataSource):
     self.num_threads = num_threads
     self.dataloading_host_count = dataloading_host_count
     self.dataloading_host_index = dataloading_host_index
-    self.generate_padding_example = generate_padding_example
+    #self.generate_padding_example = generate_padding_example
     self.max_target_lenth = max_target_length
     self.data_column_names = data_column_names
     self.n_shards = dataset.n_shards
@@ -136,10 +136,10 @@ class HFDataSource(grain.RandomAccessDataSource):
           f"Run out of shards on host {self.dataloading_host_index}, shard {self.dataset_shards[idx]} is not available"
       )
       self.out_of_data = True
-      if self.generate_padding_example:
-        max_logging.log(
-            f"Host {self.dataloading_host_index} will start generating all-0 padding examples until step number is met."
-        )
+      # if self.generate_padding_example:
+      #   max_logging.log(
+      #       f"Host {self.dataloading_host_index} will start generating all-0 padding examples until step number is met."
+      #   )
 
   def __len__(self):
     """Return length of the HF dataset. Since HuggingFace IterableDataset does not have length,
@@ -156,10 +156,17 @@ class HFDataSource(grain.RandomAccessDataSource):
     while True:
       try:
         if self.out_of_data:
-          if self.generate_padding_example:
-            return {column_name: np.zeros(self.max_target_lenth, dtype=np.int32) for column_name in self.data_column_names}
-          else:
-            return None
+              return {
+                  "audio":{
+                    "array": np.zeros(30 * 44100, dtype=np.float32),
+                  },
+                  "text": np.zeros(self.max_target_lenth, dtype=np.int32),
+                  "speaker": -1,
+              }
+          # if self.generate_padding_example:
+          #   return {column_name: np.zeros(self.max_target_lenth, dtype=np.int32) for column_name in self.data_column_names}
+          # else:
+          #   return None
         data = next(self.data_iters[idx])
         return data
       except StopIteration:

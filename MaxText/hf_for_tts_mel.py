@@ -1,8 +1,8 @@
 from dataclasses import dataclass
 import queue
 import threading
-from time import sleep
-from typing import List
+# from time import sleep
+# from typing import List
 import datasets
 import grain.python as grain
 import multihost_dataloading
@@ -20,18 +20,18 @@ from librosa.filters import mel as librosa_mel_fn
 import audax.core.stft
 import jax_fcpe
 from flax.core import FrozenDict, copy
-from collections import Counter
+#from collections import Counter
 import os
 from array_record.python.array_record_module import ArrayRecordWriter
 from jax.experimental.compilation_cache import compilation_cache as cc
 import subprocess
 import shlex
-import atexit
+#import atexit
 cc.set_cache_dir("/tmp/jax_cache")
 DEVICE = "tpu"
 MAX_LENGTH_AUDIO_44K = 30 * 44100
 MAX_LENGTH_AUDIO_16K = 30 * 16000
-MAX_LENGTH_TEXT = 10000
+MAX_LENGTH_TEXT = 15000
 PER_DEVICE_BATCH_SIZE = 16
 SOURCE_SAMPLERATE = 44100
 @dataclass
@@ -278,18 +278,19 @@ if __name__ == "__main__":
     writer = ArrayRecordWriter(os.path.join(mount_point,f"dataset2/hifi_tts_train-shared-{jax.process_index()}.arrayrecord"), 'group_size:1')
     q = queue.Queue()
     #writer = None
-    def close_writer():
-        if writer:
-            q.put(None)
-            #q.join()
-            #sleep(30)
-            writer.close()
+    # def close_writer():
+    #     if writer:
+    #         q.put(None)
+    #         q.join()
+    #         #sleep(30)
+    #         writer.close()
 
     def writer_thread(q, writer):
        while True:
             try:
                 data = q.get(timeout=1)  # 设置超时，避免无限阻塞
                 if data is None:  # 哨兵值，用于结束线程
+                    q.task_done()
                     break
                 writer.write(data)
                 q.task_done()  # 标记任务完成
@@ -303,7 +304,7 @@ if __name__ == "__main__":
     t = threading.Thread(target=writer_thread, args=(q, writer))
     t.daemon = True 
     t.start()
-    atexit.register(close_writer)
+    #atexit.register(close_writer)
 
     mel_x_sharding = get_sharding_for_spec(PartitionSpec("data"))
     x_sharding = get_sharding_for_spec(PartitionSpec("data"))
@@ -312,6 +313,11 @@ if __name__ == "__main__":
     os.makedirs(os.path.join(mount_point,"dataset2"),exist_ok=True)
     batch_count = 0 
     for item in multihost_gen:
+        if -1 in np.asarray(item["speaker_id"]).tolist():
+            q.put(None)
+            q.join()
+            writer.close()
+            break
         batch_count += 1
         print(f"batch {batch_count} round {iter_count}",flush=True)
         # if iter_count%10240 == 0:
