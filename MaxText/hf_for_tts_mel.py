@@ -277,13 +277,6 @@ if __name__ == "__main__":
     iter_count = 0
     writer = ArrayRecordWriter(os.path.join(mount_point,f"dataset2/hifi_tts_train-shared-{jax.process_index()}.arrayrecord"), 'group_size:1')
     q = queue.Queue()
-    #writer = None
-    # def close_writer():
-    #     if writer:
-    #         q.put(None)
-    #         q.join()
-    #         #sleep(30)
-    #         writer.close()
 
     def writer_thread(q, writer):
        while True:
@@ -298,13 +291,10 @@ if __name__ == "__main__":
             except queue.Empty:
                 continue
 
-    
-    
     # 创建并启动写入线程
     t = threading.Thread(target=writer_thread, args=(q, writer))
     t.daemon = True 
     t.start()
-    #atexit.register(close_writer)
 
     mel_x_sharding = get_sharding_for_spec(PartitionSpec("data"))
     x_sharding = get_sharding_for_spec(PartitionSpec("data"))
@@ -313,7 +303,8 @@ if __name__ == "__main__":
     os.makedirs(os.path.join(mount_point,"dataset2"),exist_ok=True)
     batch_count = 0 
     for item in multihost_gen:
-        if -1 in np.asarray(item["speaker_id"]).tolist():
+        speaker_arr = jax.device_put(item["speaker_id"],out_sharding)
+        if -1 in np.asarray(speaker_arr).tolist():
             q.put(None)
             q.join()
             writer.close()
@@ -347,7 +338,7 @@ if __name__ == "__main__":
             n_frames = item["audio_length"][k]//512
             text_length = int(item["text_length"][k])
             text_tokens = text_arr[k][:text_length]
-            speaker_id = item["speaker_id"][k]
+            speaker_id = speaker_arr[k]
             
             mel_slice = mel_arr[k,:,:n_frames]
             f0_slice = f0_arr[k,:n_frames].transpose(1,0)
