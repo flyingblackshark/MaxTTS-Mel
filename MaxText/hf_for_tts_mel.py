@@ -296,6 +296,7 @@ if __name__ == "__main__":
                     continue
                 writer.write(data)
                 q.task_done()  # 标记任务完成
+                print(f"Task completed. Remaining tasks: {q.qsize()}")
             except queue.Empty:
                 if exception_event.is_set(): #如果主线程发生异常，且队列为空，则退出
                     break
