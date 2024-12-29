@@ -278,7 +278,6 @@ if __name__ == "__main__":
     q = queue.Queue()
     #writer = None
     def close_writer():
-        global writer
         if writer:
             #q.put(None)
             #q.join()
