@@ -85,72 +85,6 @@ def mount_gcs_bucket(bucket_name, mount_point):
         return False
 
     return True
-# def first_fit_pack(outputs: List[Output], max_length: int = 10240):
-#     """
-#     使用 First-Fit 算法打包 Output 对象。
-
-#     Args:
-#         outputs: Output 对象列表。
-#         max_length: 每个包的最大长度。
-
-#     Returns:
-#         一个包含打包后 Output 对象列表的列表。
-#     """
-
-#     packed_outputs: List[List[Output]] = []
-#     current_pack: List[Output] = []
-#     current_length: int = 0
-
-#     for output in outputs:
-#         if current_length + output.length <= max_length:
-#             current_pack.append(output)
-#             current_length += output.length
-#         else:
-#             packed_outputs.append(current_pack)
-#             current_pack = [output]
-#             current_length = output.length
-
-#     # 添加最后一个包
-#     if current_pack:
-#         packed_outputs.append(current_pack)
-
-#     return packed_outputs
-
-# def merge_packed_outputs(packed_outputs: List[List[Output]]):
-#     """
-#     将打包后的 Output 对象列表合并成新的 Output 对象。
-
-#     Args:
-#         packed_outputs: 打包后的 Output 对象列表。
-
-#     Returns:
-#         一个包含合并后 Output 对象的列表。如果输入为空或所有子列表都为空，则返回空列表。
-#     """
-#     if not packed_outputs or all(not pack for pack in packed_outputs):
-#         return []
-
-#     merged_outputs = []
-#     for pack in packed_outputs:
-#         if not pack:
-#             continue
-
-#         # 处理不同的 speaker_id
-#         speaker_ids = [output.speaker_id for output in pack]
-#         speaker_counts = Counter(speaker_ids)
-#         most_common_speaker = speaker_counts.most_common(1)[0][0] #获取数量最多的speaker_id
-#         filtered_pack = [output for output in pack if output.speaker_id == most_common_speaker] #过滤掉非主要speaker_id的数据
-
-#         if not filtered_pack: #如果过滤后为空，则跳过
-#             continue
-
-#         merged_tokens = np.concatenate([output.tokens for output in filtered_pack], axis=0)
-#         merged_mel = np.concatenate([output.mel for output in filtered_pack], axis=1)
-#         merged_f0 = np.concatenate([output.f0 for output in filtered_pack], axis=0)
-#         merged_length = sum(output.length for output in filtered_pack)
-
-#         merged_outputs.append(Output(merged_tokens, merged_mel, merged_f0, merged_length, most_common_speaker))
-
-#     return merged_outputs
 
 def f0_to_coarse_numpy(f0, f0_bin=128, f0_mel_min=80.0, f0_mel_max=880.0):
     """
@@ -363,80 +297,71 @@ if __name__ == "__main__":
 
         slice_size = PER_DEVICE_BATCH_SIZE * jax.device_count() // jax.process_count()
 
-        for k in range(slice_size*jax.process_index(),slice_size*(jax.process_index()+1)):
-        #for k in range(PER_DEVICE_BATCH_SIZE * jax.device_count() // jax.process_count()):
-            n_frames = item["audio_length"][k]//512
-            text_length = int(item["text_length"][k])
-            text_tokens = text_arr[k][:text_length]
-            speaker_id = item["speaker_id"][k]
+        mel_arr = np.asarray(mel_arr)
+        text_arr = np.asarray(text_arr)
+        f0_arr = np.asarray(f0_arr)
+        # for k in range(slice_size*jax.process_index(),slice_size*(jax.process_index()+1)):
+        #     n_frames = item["audio_length"][k]//512
+        #     text_length = int(item["text_length"][k])
+        #     text_tokens = text_arr[k][:text_length]
+        #     speaker_id = item["speaker_id"][k]
             
-            mel_slice = mel_arr[k,:,:n_frames]
-            f0_slice = f0_arr[k,:n_frames].transpose(1,0)
-            mel_slice = np.concatenate((mel_slice,f0_slice),axis=0)
+        #     mel_slice = mel_arr[k,:,:n_frames]
+        #     f0_slice = f0_arr[k,:n_frames].transpose(1,0)
+        #     mel_slice = np.concatenate((mel_slice,f0_slice),axis=0)
 
 
-            string_prefix = "<|im_start|>user\n"
-            string_suffix = "<|im_end|><|im_start|>assistant\n"
+        #     string_prefix = "<|im_start|>user\n"
+        #     string_suffix = "<|im_end|><|im_start|>assistant\n"
 
-            encoded_prefix = enc.encode(
-                string_prefix,
-                allowed_special={"<|im_start|>","<|im_end|>"}
-            )
+        #     encoded_prefix = enc.encode(
+        #         string_prefix,
+        #         allowed_special={"<|im_start|>","<|im_end|>"}
+        #     )
 
-            encoded_suffix = enc.encode(
-                string_suffix,
-                allowed_special={"<|im_start|>","<|im_end|>"}
-            )
+        #     encoded_suffix = enc.encode(
+        #         string_suffix,
+        #         allowed_special={"<|im_start|>","<|im_end|>"}
+        #     )
 
-            encoded = encoded_prefix + np.asarray(text_tokens).tolist() + encoded_suffix
-            mel_dim = 129
+        #     encoded = encoded_prefix + np.asarray(text_tokens).tolist() + encoded_suffix
+        #     mel_dim = 129
 
-            mel_token_id = enc.encode_single_token("<|semantic|>")
-            mel_length = mel_slice.shape[1]
-            tokens = (
-                encoded
-                + [mel_token_id] * mel_length
-                + [enc.encode_single_token("<|im_end|>")]
-            )
-            prompt_length = len(encoded)
+        #     mel_token_id = enc.encode_single_token("<|semantic|>")
+        #     mel_length = mel_slice.shape[1]
+        #     tokens = (
+        #         encoded
+        #         + [mel_token_id] * mel_length
+        #         + [enc.encode_single_token("<|im_end|>")]
+        #     )
+        #     prompt_length = len(encoded)
 
-            codes = [[MEL_PAD_TOKEN_ID] * prompt_length for _ in range(mel_dim)]
-            for book_idx, book in zip(range(mel_dim), mel_slice):
-                for j in book:
-                    codes[book_idx].append(j)
-            for book in codes:
-                book.extend([MEL_PAD_TOKEN_ID] * 1)
-            tokens = np.asarray(tokens)
-            codes = np.asarray(codes)
-            #speaker_id = np.asarray(speaker_id).tolist()
-            mel = codes[:-1]
-            f0 = codes[-1]
-            f0 = f0_to_coarse_numpy(f0)
-            #single_output = Output(tokens,mel,f0,tokens.shape[0],speaker_id)
-            #outputs.append(single_output)
+        #     codes = [[MEL_PAD_TOKEN_ID] * prompt_length for _ in range(mel_dim)]
+        #     for book_idx, book in zip(range(mel_dim), mel_slice):
+        #         for j in book:
+        #             codes[book_idx].append(j)
+        #     for book in codes:
+        #         book.extend([MEL_PAD_TOKEN_ID] * 1)
+        #     tokens = np.asarray(tokens)
+        #     codes = np.asarray(codes)
+        #     mel = codes[:-1]
+        #     f0 = codes[-1]
+        #     f0 = f0_to_coarse_numpy(f0)
+        #     iter_count+=1
 
-            iter_count+=1
+        #     example = tf.train.Example(
+        #             features=tf.train.Features(
+        #                 feature={
+        #                     'tokens': tf.train.Feature(
+        #                         bytes_list=tf.train.BytesList(value=[tf.io.serialize_tensor(tokens).numpy()])),
+        #                     'mel': tf.train.Feature(
+        #                         bytes_list=tf.train.BytesList(value=[tf.io.serialize_tensor(mel).numpy()])),
+        #                     'f0':tf.train.Feature(
+        #                         bytes_list=tf.train.BytesList(value=[tf.io.serialize_tensor(f0).numpy()])),
+        #                     'speaker_id':tf.train.Feature(
+        #                         bytes_list=tf.train.BytesList(value=[tf.io.serialize_tensor(speaker_id).numpy()])),
+        #                 }
+        #             )
+        #         )
             
-            #if jax.process_index() == 0:
-            #print(f"round {i}",flush=True)
-            # packed = first_fit_pack(outputs)
-            # merged = merge_packed_outputs(packed)
-        #if jax.process_index() == 0:
-
-            example = tf.train.Example(
-                    features=tf.train.Features(
-                        feature={
-                            'tokens': tf.train.Feature(
-                                bytes_list=tf.train.BytesList(value=[tf.io.serialize_tensor(tokens).numpy()])),
-                            'mel': tf.train.Feature(
-                                bytes_list=tf.train.BytesList(value=[tf.io.serialize_tensor(mel).numpy()])),
-                            'f0':tf.train.Feature(
-                                bytes_list=tf.train.BytesList(value=[tf.io.serialize_tensor(f0).numpy()])),
-                            'speaker_id':tf.train.Feature(
-                                bytes_list=tf.train.BytesList(value=[tf.io.serialize_tensor(speaker_id).numpy()])),
-                        }
-                    )
-                )
-            
-            writer.write(example.SerializeToString())
-    #writer.close() 
+        #     writer.write(example.SerializeToString())
