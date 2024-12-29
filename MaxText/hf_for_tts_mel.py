@@ -275,10 +275,10 @@ if __name__ == "__main__":
     MEL_PAD_TOKEN_ID = 0
     iter_count = 0
     writer = ArrayRecordWriter(os.path.join(mount_point,f"dataset2/hifi_tts_train-shared-{jax.process_index()}.arrayrecord"), 'group_size:1')
+    q = queue.Queue()
     #writer = None
     def close_writer():
-        global writer
-        global q
+        global q,writer
         if writer:
             q.put(None)
             q.join()
@@ -295,7 +295,7 @@ if __name__ == "__main__":
             except queue.Empty:
                 continue
 
-    q = queue.Queue()
+    
 
     # 创建并启动写入线程
     t = threading.Thread(target=writer_thread, args=(q, writer))
