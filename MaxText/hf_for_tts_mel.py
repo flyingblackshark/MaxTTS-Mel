@@ -190,7 +190,7 @@ if __name__ == "__main__":
     else:
         print("挂载过程中发生错误。")
     #if DEVICE == "tpu":
-    jax.distributed.initialize()
+    #jax.distributed.initialize()
     device_mesh = mesh_utils.create_device_mesh((jax.device_count(),))
     mesh = Mesh(device_mesh, axis_names=("data")) 
     ds1 = datasets.load_dataset(
