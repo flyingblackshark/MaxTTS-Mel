@@ -279,8 +279,8 @@ if __name__ == "__main__":
     #writer = None
     def close_writer():
         if writer:
-            #q.put(None)
-            #q.join()
+            q.put(None)
+            q.join()
             writer.close()
 
     def writer_thread(q, writer):
