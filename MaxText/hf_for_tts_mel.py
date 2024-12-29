@@ -277,7 +277,9 @@ if __name__ == "__main__":
     writer = ArrayRecordWriter(os.path.join(mount_point,f"dataset2/hifi_tts_train-shared-{jax.process_index()}.arrayrecord"), 'group_size:1')
     q = queue.Queue()
     #writer = None
+    exception_event = threading.Event()
     def close_writer():
+        exception_event.set()
         if writer:
             q.put(None)
             q.join()
@@ -289,13 +291,18 @@ if __name__ == "__main__":
                 data = q.get(timeout=1)  # 设置超时，避免无限阻塞
                 if data is None:  # 哨兵值，用于结束线程
                     break
+                if exception_event.is_set(): #如果主线程发生异常，则不再写入新的数据
+                    q.task_done()
+                    continue
                 writer.write(data)
                 q.task_done()  # 标记任务完成
             except queue.Empty:
+                if exception_event.is_set(): #如果主线程发生异常，且队列为空，则退出
+                    break
                 continue
 
     
-
+    
     # 创建并启动写入线程
     t = threading.Thread(target=writer_thread, args=(q, writer))
     t.daemon = True  # 设置为守护线程，主线程退出时自动退出
