@@ -347,13 +347,13 @@ if __name__ == "__main__":
                 + [enc.encode_single_token("<|im_end|>")]
             )
             prompt_length = len(encoded)
-
-            codes = [[MEL_PAD_TOKEN_ID] * prompt_length for _ in range(mel_dim)]
-            for book_idx, book in zip(range(mel_dim), mel_slice):
-                for j in book:
-                    codes[book_idx].append(j)
-            for book in codes:
-                book.extend([MEL_PAD_TOKEN_ID] * 1)
+            codes = np.pad(mel_slice,((0,0),(prompt_length,1)))
+            # codes = [[MEL_PAD_TOKEN_ID] * prompt_length for _ in range(mel_dim)]
+            # for book_idx, book in zip(range(mel_dim), mel_slice):
+            #     for j in book:
+            #         codes[book_idx].append(j)
+            # for book in codes:
+            #     book.extend([MEL_PAD_TOKEN_ID] * 1)
             tokens = np.asarray(tokens)
             codes = np.asarray(codes)
             mel = codes[:-1]
