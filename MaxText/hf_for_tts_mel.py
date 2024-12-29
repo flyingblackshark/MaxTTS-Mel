@@ -1,6 +1,7 @@
 from dataclasses import dataclass
 import queue
 import threading
+from time import sleep
 from typing import List
 import datasets
 import grain.python as grain
@@ -282,7 +283,8 @@ if __name__ == "__main__":
         exception_event.set()
         if writer:
             # q.put(None)
-            q.join()
+            #q.join()
+            sleep(30)
             writer.close()
 
     def writer_thread(q, writer,exception_event):
