@@ -190,7 +190,7 @@ if __name__ == "__main__":
     else:
         print("挂载过程中发生错误。")
     #if DEVICE == "tpu":
-    #jax.distributed.initialize()
+    jax.distributed.initialize()
     device_mesh = mesh_utils.create_device_mesh((jax.device_count(),))
     mesh = Mesh(device_mesh, axis_names=("data")) 
     ds1 = datasets.load_dataset(
@@ -296,8 +296,8 @@ if __name__ == "__main__":
                 writer.close() 
             writer = ArrayRecordWriter(os.path.join(mount_point,f"dataset2/hifi_tts_train_part_{num}-shared-{jax.process_index()}.arrayrecord"), 'group_size:1')
             
-        mel_arr  = jax.jit(get_mel, in_shardings=mel_x_sharding,out_shardings=out_sharding)(item["audio_44k"])
-        @partial(jax.jit,in_shardings=(get_sharding_for_spec(PartitionSpec(None)),x_sharding),out_shardings=out_sharding)
+        mel_arr  = jax.jit(get_mel, in_shardings=mel_x_sharding,out_shardings=x_sharding)(item["audio_44k"])
+        @partial(jax.jit,in_shardings=(get_sharding_for_spec(PartitionSpec(None)),x_sharding),out_shardings=x_sharding)
         def f0_process_wrap(params,audio):
             f0_arr = jax_fcpe.get_f0(audio,sr=16000,model=fcpe_model,params=params)
             f0_arr = jax.image.resize(f0_arr,shape=(f0_arr.shape[0],mel_arr.shape[-1],1),method="nearest")
@@ -305,7 +305,7 @@ if __name__ == "__main__":
         # f0_arr = jax.jit(partial(jax_fcpe.get_f0,sr=16000,model=fcpe_model,params=fcpe_params), in_shardings=x_sharding,out_shardings=out_sharding)(item["audio_16k"])
         # f0_arr = jax.image.resize(f0_arr,shape=(f0_arr.shape[0],mel_arr.shape[-1],1),method="nearest")
         f0_arr = f0_process_wrap(fcpe_params,item["audio_16k"])
-        text_arr = jax.device_put(item["text"],out_sharding)
+        text_arr = jax.device_put(item["text"],x_sharding)
 
         slice_size = PER_DEVICE_BATCH_SIZE * jax.device_count() // jax.process_count()
 
