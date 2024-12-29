@@ -278,7 +278,10 @@ if __name__ == "__main__":
     #writer = None
     def close_writer():
         global writer
+        global q
         if writer:
+            q.put(None)
+            q.join()
             writer.close()
 
     def writer_thread(q, writer):
