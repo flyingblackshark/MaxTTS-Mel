@@ -287,7 +287,7 @@ if __name__ == "__main__":
     def writer_thread(q, writer):
         while True:
             try:
-                data = q.get(timeout=1)  # 设置超时，避免无限阻塞
+                data = q.get(timeout=5)  # 设置超时，避免无限阻塞
                 if data is None:  # 哨兵值，用于结束线程
                     break
                 writer.write(data)
