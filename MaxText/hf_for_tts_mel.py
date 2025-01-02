@@ -280,6 +280,7 @@ if __name__ == "__main__":
     
     MEL_PAD_TOKEN_ID = 0
     iter_count = 0
+    os.makedirs(os.path.join(mount_point,"dataset2"),exist_ok=True)
     writer = ArrayRecordWriter(os.path.join(mount_point,f"dataset2/hifi_tts_train-shared-{jax.process_index()}.arrayrecord"), 'group_size:1')
     q = queue.Queue()
 
@@ -305,7 +306,7 @@ if __name__ == "__main__":
     x_sharding = get_sharding_for_spec(PartitionSpec("data"))
     out_sharding = get_sharding_for_spec(PartitionSpec(None))
     
-    os.makedirs(os.path.join(mount_point,"dataset2"),exist_ok=True)
+
     batch_count = 0 
     for item in multihost_gen:
         speaker_arr = jax.device_put(item["speaker_id"],out_sharding)
