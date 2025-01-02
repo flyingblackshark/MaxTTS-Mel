@@ -26,6 +26,9 @@ from array_record.python.array_record_module import ArrayRecordWriter
 from jax.experimental.compilation_cache import compilation_cache as cc
 import subprocess
 import shlex
+from datasets import disable_caching
+disable_caching()
+os.environ["HF_DATASETS_IN_MEMORY_MAX_SIZE"]=1024*1024*64
 #import atexit
 cc.set_cache_dir("/tmp/jax_cache")
 DEVICE = "tpu"
