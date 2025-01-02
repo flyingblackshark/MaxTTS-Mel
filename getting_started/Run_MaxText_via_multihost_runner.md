@@ -74,7 +74,7 @@ either be a TPUVM or not, but it cannot be one of the workers. If your runner ma
 4. Install dependencies.
     Install the dependencies of `train.py` on each worker using `multihost_runner.py`:
     ```
-    python3 multihost_runner.py --TPU_PREFIX=node-1 --COMMAND="bash setup.sh" --INTERNAL_IP=true
+    python3 multihost_runner.py --TPU_PREFIX=node-6 --COMMAND="bash setup.sh" --INTERNAL_IP=true
     ```
     If you are running the `multihost_runner.py` script from a TPUVM, you will need to set `--INTERNAL_IP=true`.
 
@@ -87,6 +87,7 @@ either be a TPUVM or not, but it cannot be one of the workers. If your runner ma
     Set config values for `base_output_directory` and `dataset_path` in `configs/base.yml` if not set already.
     ```
     python3 multihost_runner.py --TPU_PREFIX=node-1 --COMMAND="python3 MaxText/train.py MaxText/configs/base.yml run_name=meltest4" --INTERNAL_IP=true
+    python3 multihost_runner.py --TPU_PREFIX=node-1 --COMMAND="python3 MaxText/hf_for_tts_mel.py" --INTERNAL_IP=true
     ```
     If you are running the `multihost_runner.py` script from a TPUVM, you will need to set `--INTERNAL_IP=true`.
 

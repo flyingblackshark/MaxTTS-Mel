@@ -306,7 +306,7 @@ add_bos: True
 add_eos: True
 
 # Dataset
-per_device_batch_size: 12.0
+per_device_batch_size: 1.0
 expansion_factor_real_data: -1 # if -1 then all hosts will load real data, else total_hosts//expansion_factor_real_data will pull data from GCS.
 eval_per_device_batch_size: 0.0
 max_corpus_chars: 10_000_000
@@ -334,7 +334,7 @@ hf_eval_split: ''
 hf_eval_files: ''
 hf_access_token: ''
 # for Grain input pipeline (dataset_type=grain)
-grain_train_files: '/dev/shm/dataset/*.arrayrecord'
+grain_train_files: '/root/bucket/dataset2/*.arrayrecord'
 grain_eval_files: ''
 grain_worker_count: 1
 

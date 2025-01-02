@@ -33,7 +33,7 @@ MAX_LENGTH_AUDIO_44K = 30 * 44100
 MAX_LENGTH_AUDIO_16K = 30 * 16000
 MAX_LENGTH_TEXT = 15000
 PER_DEVICE_BATCH_SIZE = 16
-SOURCE_SAMPLERATE = 44100
+SOURCE_SAMPLERATE = 16000
 @dataclass
 class Output:
     tokens: np.ndarray
@@ -196,24 +196,24 @@ if __name__ == "__main__":
     jax.distributed.initialize()
     device_mesh = mesh_utils.create_device_mesh((jax.device_count(),))
     mesh = Mesh(device_mesh, axis_names=("data")) 
-    ds1 = datasets.load_dataset(
-        "MikhailT/hifi-tts",
-        name="all",
-        split="train.clean",
-        streaming=True,
-    ).select_columns(["text","audio","speaker"])
-    ds2 = datasets.load_dataset(
-        "MikhailT/hifi-tts",
-        name="all",
-        split="train.other",
-        streaming=True,
-    ).select_columns(["text","audio","speaker"])
-    # ds3 = datasets.load_dataset(
-    #     "fbs0/mls_eng_10k_added_text",
-    #     split="train",
+    # ds1 = datasets.load_dataset(
+    #     "MikhailT/hifi-tts",
+    #     name="all",
+    #     split="train.clean",
     #     streaming=True,
-    # ).select_columns(["text","audio","speaker_id"]).rename_column("speaker_id", "speaker")
-    dataset = datasets.concatenate_datasets([ds1,ds2])
+    # ).select_columns(["text","audio","speaker"])
+    # ds2 = datasets.load_dataset(
+    #     "MikhailT/hifi-tts",
+    #     name="all",
+    #     split="train.other",
+    #     streaming=True,
+    # ).select_columns(["text","audio","speaker"])
+    ds3 = datasets.load_dataset(
+        "fbs0/mls_eng_10k_added_text",
+        split="train",
+        streaming=True,
+    ).select_columns(["text","audio","speaker_id"]).rename_column("speaker_id", "speaker")
+    dataset = datasets.concatenate_datasets([ds3])
     cl100k_base = tiktoken.get_encoding("cl100k_base")
 
     enc = tiktoken.Encoding(
@@ -230,7 +230,7 @@ if __name__ == "__main__":
 
 
     def process(example):
-        ids = enc.encode(text=example["text_normalized"])
+        ids = enc.encode(text=example["text"])
         
         return {'input_ids': ids}
     dataset = dataset.map(process)

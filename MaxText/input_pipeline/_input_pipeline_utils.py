@@ -197,7 +197,7 @@ class ParseFeatures(grain.MapTransform):
     tokens = tf.io.parse_tensor(parsed["tokens"],tf.int64).numpy()
     inputs = tokens[:-1]
     targets = tokens[1:]
-    mel =  tf.io.parse_tensor(parsed["mel"],tf.float64).numpy().transpose(1,0)
+    mel =  tf.io.parse_tensor(parsed["mel"],tf.float32).numpy().transpose(1,0)
     inputs_mel = mel[:-1]
     targets_mel = mel[:-1]
     f0 =  tf.io.parse_tensor(parsed["f0"],tf.int64).numpy()
