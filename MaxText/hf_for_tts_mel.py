@@ -201,13 +201,13 @@ if __name__ == "__main__":
         name="all",
         split="train.clean",
         streaming=True,
-    )
+    ).select_columns(["text_normalized","audio","speaker"]).rename_column("text_normalized", "text")
     ds2 = datasets.load_dataset(
         "MikhailT/hifi-tts",
         name="all",
         split="train.other",
         streaming=True,
-    )
+    ).select_columns(["text_normalized","audio","speaker"]).rename_column("text_normalized", "text")
     # ds3 = datasets.load_dataset(
     #     "fbs0/mls_eng_10k_added_text",
     #     split="train",
@@ -230,7 +230,7 @@ if __name__ == "__main__":
 
 
     def process(example):
-        ids = enc.encode(text=example["text_normalized"])
+        ids = enc.encode(text=example["text"])
         
         return {'input_ids': ids}
     dataset = dataset.map(process)
