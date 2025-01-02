@@ -390,19 +390,19 @@ if __name__ == "__main__":
             f0 = f0_to_coarse_numpy(f0)
             iter_count+=1
 
-            example = tf.train.Example(
-                    features=tf.train.Features(
-                        feature={
-                            'tokens': tf.train.Feature(
-                                bytes_list=tf.train.BytesList(value=[tf.io.serialize_tensor(tokens).numpy()])),
-                            'mel': tf.train.Feature(
-                                bytes_list=tf.train.BytesList(value=[tf.io.serialize_tensor(mel).numpy()])),
-                            'f0':tf.train.Feature(
-                                bytes_list=tf.train.BytesList(value=[tf.io.serialize_tensor(f0).numpy()])),
-                            'speaker_id':tf.train.Feature(
-                                bytes_list=tf.train.BytesList(value=[tf.io.serialize_tensor(speaker_id).numpy()])),
-                        }
-                    )
-                )
-            q.put(example.SerializeToString())
+            # example = tf.train.Example(
+            #         features=tf.train.Features(
+            #             feature={
+            #                 'tokens': tf.train.Feature(
+            #                     bytes_list=tf.train.BytesList(value=[tf.io.serialize_tensor(tokens).numpy()])),
+            #                 'mel': tf.train.Feature(
+            #                     bytes_list=tf.train.BytesList(value=[tf.io.serialize_tensor(mel).numpy()])),
+            #                 'f0':tf.train.Feature(
+            #                     bytes_list=tf.train.BytesList(value=[tf.io.serialize_tensor(f0).numpy()])),
+            #                 'speaker_id':tf.train.Feature(
+            #                     bytes_list=tf.train.BytesList(value=[tf.io.serialize_tensor(speaker_id).numpy()])),
+            #             }
+            #         )
+            #     )
+            # q.put(example.SerializeToString())
             #writer.write(example.SerializeToString())
