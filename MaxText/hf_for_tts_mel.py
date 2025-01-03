@@ -338,7 +338,7 @@ if __name__ == "__main__":
         # f0_arr = jax.jit(partial(jax_fcpe.get_f0,sr=16000,model=fcpe_model,params=fcpe_params), in_shardings=x_sharding,out_shardings=out_sharding)(item["audio_16k"])
         # f0_arr = jax.image.resize(f0_arr,shape=(f0_arr.shape[0],mel_arr.shape[-1],1),method="nearest")
         f0_arr = f0_process_wrap(fcpe_params,item["audio_16k"])
-        text_arr = jax.device_put(item["text"],out_sharding)
+        #text_arr = jax.device_put(item["text"],out_sharding)
 
         slice_size = PER_DEVICE_BATCH_SIZE * jax.device_count() // jax.process_count()
 
