@@ -278,7 +278,9 @@ if __name__ == "__main__":
     
 
     multihost_gen = multihost_dataloading.MultiHostDataLoadIterator(dataloader, mesh)
+
     fcpe_model,fcpe_params = jax_fcpe.load_model()
+    print("FCPE初始化完成", flush=True)
     fcpe_params = FrozenDict(fcpe_params)
     
     MEL_PAD_TOKEN_ID = 0
