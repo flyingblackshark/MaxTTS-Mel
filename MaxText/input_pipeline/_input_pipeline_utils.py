@@ -99,6 +99,7 @@ class HFDataSource(grain.RandomAccessDataSource):
       generate_padding_example: bool,
       max_target_length: int,
       data_column_names: list[str],
+      source_sampling_rate = 16000,
   ):
     self.dataset = dataset
     self.num_threads = num_threads
@@ -113,6 +114,7 @@ class HFDataSource(grain.RandomAccessDataSource):
     self.datasets = [split_dataset_by_node(dataset, world_size=self.n_shards, rank=x) for x in self.dataset_shards]
     self.data_iters = []
     self.out_of_data = False
+    self.source_sampling_rate = source_sampling_rate
 
   def _check_shard_count(self):
     if self.n_shards < (self.dataloading_host_count * self.num_threads):
@@ -158,7 +160,7 @@ class HFDataSource(grain.RandomAccessDataSource):
         if self.out_of_data:
               return {
                   "audio":{
-                    "array": np.zeros(30 * 44100, dtype=np.float32),
+                    "array": np.zeros(30 * self.source_sampling_rate, dtype=np.float32),
                   },
                   "text": np.zeros(self.max_target_lenth, dtype=np.int32),
                   "speaker": -1,

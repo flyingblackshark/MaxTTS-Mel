@@ -252,7 +252,8 @@ if __name__ == "__main__":
                                                 1,
                                                 False,
                                                 15000,
-                                                "text")
+                                                "text",
+                                                SOURCE_SAMPLERATE)
     operations = []
     operations.append(HFParseAudioFeatures())
     operations.append(PadToMaxLength())
