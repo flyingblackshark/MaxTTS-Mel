@@ -190,13 +190,14 @@ if __name__ == "__main__":
     mount_point = os.path.join(home_dir, "bucket")
 
     if mount_gcs_bucket(bucket_name, mount_point):
-        print("挂载完成。")
+        print("挂载完成。", flush=True)
     else:
-        print("挂载过程中发生错误。")
+        print("挂载过程中发生错误。", flush=True)
     #if DEVICE == "tpu":
     jax.distributed.initialize()
     device_mesh = mesh_utils.create_device_mesh((jax.device_count(),))
     mesh = Mesh(device_mesh, axis_names=("data")) 
+    print("分布式初始化完成", flush=True)
     # ds1 = datasets.load_dataset(
     #     "MikhailT/hifi-tts",
     #     name="all",
@@ -216,7 +217,7 @@ if __name__ == "__main__":
     ).select_columns(["text","audio","speaker_id"]).rename_column("speaker_id", "speaker")
     dataset = datasets.concatenate_datasets([ds3])
     cl100k_base = tiktoken.get_encoding("cl100k_base")
-
+    
     enc = tiktoken.Encoding(
         name="cl100k_im",
         pat_str=cl100k_base._pat_str,
@@ -228,7 +229,7 @@ if __name__ == "__main__":
             "<|semantic|>": 100266,
         }
     )
-
+    print("tiktoken初始化完成", flush=True)
 
     def process(example):
         ids = enc.encode(text=example["text"])
