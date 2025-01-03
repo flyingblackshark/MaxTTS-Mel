@@ -286,26 +286,26 @@ if __name__ == "__main__":
     MEL_PAD_TOKEN_ID = 0
     iter_count = 0
     os.makedirs(os.path.join(mount_point,"dataset2"),exist_ok=True)
-    # writer = ArrayRecordWriter(os.path.join(mount_point,f"dataset2/hifi_tts_train-shared-{jax.process_index()}.arrayrecord"), 'group_size:1')
-    # q = queue.Queue()
+    writer = ArrayRecordWriter(os.path.join(mount_point,f"dataset2/hifi_tts_train-shared-{jax.process_index()}.arrayrecord"), 'group_size:1')
+    q = queue.Queue()
 
-    # def writer_thread(q, writer):
-    #    while True:
-    #         try:
-    #             data = q.get(timeout=1)  # 设置超时，避免无限阻塞
-    #             if data is None:  # 哨兵值，用于结束线程
-    #                 q.task_done()
-    #                 break
-    #             writer.write(data)
-    #             q.task_done()  # 标记任务完成
-    #             #print(f"Task completed. Remaining tasks: {q.qsize()}")
-    #         except queue.Empty:
-    #             continue
+    def writer_thread(q, writer):
+       while True:
+            try:
+                data = q.get(timeout=1)  # 设置超时，避免无限阻塞
+                if data is None:  # 哨兵值，用于结束线程
+                    q.task_done()
+                    break
+                writer.write(data)
+                q.task_done()  # 标记任务完成
+                #print(f"Task completed. Remaining tasks: {q.qsize()}")
+            except queue.Empty:
+                continue
 
-    # # 创建并启动写入线程
-    # t = threading.Thread(target=writer_thread, args=(q, writer))
-    # t.daemon = True 
-    # t.start()
+    # 创建并启动写入线程
+    t = threading.Thread(target=writer_thread, args=(q, writer))
+    t.daemon = True 
+    t.start()
 
     mel_x_sharding = get_sharding_for_spec(PartitionSpec("data"))
     x_sharding = get_sharding_for_spec(PartitionSpec("data"))
@@ -318,96 +318,87 @@ if __name__ == "__main__":
         return f0_arr
     batch_count = 0 
     for item in multihost_gen:
-        # speaker_arr = jax.device_put(item["speaker_id"],out_sharding)
-        # speaker_arr = np.asarray(speaker_arr)
-        # if np.any(speaker_arr==-1):
-        #     q.put(None)
-        #     q.join()
-        #     writer.close()
-        #     break
+        speaker_arr = jax.device_put(item["speaker_id"],out_sharding)
+        speaker_arr = np.asarray(speaker_arr)
+        if np.any(speaker_arr==-1):
+            q.put(None)
+            q.join()
+            writer.close()
+            break
         batch_count += 1
         print(f"batch {batch_count} round {iter_count}",flush=True)
-        # if iter_count%10240 == 0:
-        #     print(f"round {iter_count}",flush=True)
-        #     num = iter_count//10240
-        #     if writer is not None:
-        #         writer.close() 
-        #     writer = ArrayRecordWriter(os.path.join(mount_point,f"dataset2/hifi_tts_train_part_{num}-shared-{jax.process_index()}.arrayrecord"), 'group_size:1')
             
         mel_arr  = jax.jit(get_mel, in_shardings=mel_x_sharding,out_shardings=out_sharding)(item["audio_44k"])
-
-        # f0_arr = jax.jit(partial(jax_fcpe.get_f0,sr=16000,model=fcpe_model,params=fcpe_params), in_shardings=x_sharding,out_shardings=out_sharding)(item["audio_16k"])
-        # f0_arr = jax.image.resize(f0_arr,shape=(f0_arr.shape[0],mel_arr.shape[-1],1),method="nearest")
         f0_arr = f0_process_wrap(fcpe_params,item["audio_16k"])
         text_arr = jax.device_put(item["text"],out_sharding)
 
-        # slice_size = PER_DEVICE_BATCH_SIZE * jax.device_count() // jax.process_count()
+        slice_size = PER_DEVICE_BATCH_SIZE * jax.device_count() // jax.process_count()
 
-        # mel_arr = np.asarray(mel_arr)
-        # text_arr = np.asarray(text_arr)
-        # f0_arr = np.asarray(f0_arr)
-        # for k in range(slice_size*jax.process_index(),slice_size*(jax.process_index()+1)):
-        #     n_frames = item["audio_length"][k]//512
-        #     text_length = int(item["text_length"][k])
-        #     text_tokens = text_arr[k][:text_length]
-        #     speaker_id = item["speaker_id"][k]
+        mel_arr = np.asarray(mel_arr)
+        text_arr = np.asarray(text_arr)
+        f0_arr = np.asarray(f0_arr)
+        for k in range(slice_size*jax.process_index(),slice_size*(jax.process_index()+1)):
+            n_frames = item["audio_length"][k]//512
+            text_length = int(item["text_length"][k])
+            text_tokens = text_arr[k][:text_length]
+            speaker_id = item["speaker_id"][k]
             
-        #     mel_slice = mel_arr[k,:,:n_frames]
-        #     f0_slice = f0_arr[k,:n_frames].transpose(1,0)
-        #     mel_slice = np.concatenate((mel_slice,f0_slice),axis=0)
+            mel_slice = mel_arr[k,:,:n_frames]
+            f0_slice = f0_arr[k,:n_frames].transpose(1,0)
+            mel_slice = np.concatenate((mel_slice,f0_slice),axis=0)
 
 
-        #     string_prefix = "<|im_start|>user\n"
-        #     string_suffix = "<|im_end|><|im_start|>assistant\n"
+            string_prefix = "<|im_start|>user\n"
+            string_suffix = "<|im_end|><|im_start|>assistant\n"
 
-        #     encoded_prefix = enc.encode(
-        #         string_prefix,
-        #         allowed_special={"<|im_start|>","<|im_end|>"}
-        #     )
+            encoded_prefix = enc.encode(
+                string_prefix,
+                allowed_special={"<|im_start|>","<|im_end|>"}
+            )
 
-        #     encoded_suffix = enc.encode(
-        #         string_suffix,
-        #         allowed_special={"<|im_start|>","<|im_end|>"}
-        #     )
+            encoded_suffix = enc.encode(
+                string_suffix,
+                allowed_special={"<|im_start|>","<|im_end|>"}
+            )
 
-        #     encoded = encoded_prefix + np.asarray(text_tokens).tolist() + encoded_suffix
-        #     mel_dim = 129
+            encoded = encoded_prefix + np.asarray(text_tokens).tolist() + encoded_suffix
+            mel_dim = 129
 
-        #     mel_token_id = enc.encode_single_token("<|semantic|>")
-        #     mel_length = mel_slice.shape[1]
-        #     tokens = (
-        #         encoded
-        #         + [mel_token_id] * mel_length
-        #         + [enc.encode_single_token("<|im_end|>")]
-        #     )
-        #     prompt_length = len(encoded)
-        #     codes = np.pad(mel_slice,((0,0),(prompt_length,1)))
-        #     # codes = [[MEL_PAD_TOKEN_ID] * prompt_length for _ in range(mel_dim)]
-        #     # for book_idx, book in zip(range(mel_dim), mel_slice):
-        #     #     for j in book:
-        #     #         codes[book_idx].append(j)
-        #     # for book in codes:
-        #     #     book.extend([MEL_PAD_TOKEN_ID] * 1)
-        #     tokens = np.asarray(tokens)
-        #     codes = np.asarray(codes)
-        #     mel = codes[:-1]
-        #     f0 = codes[-1]
-        #     f0 = f0_to_coarse_numpy(f0)
-        #     iter_count+=1
+            mel_token_id = enc.encode_single_token("<|semantic|>")
+            mel_length = mel_slice.shape[1]
+            tokens = (
+                encoded
+                + [mel_token_id] * mel_length
+                + [enc.encode_single_token("<|im_end|>")]
+            )
+            prompt_length = len(encoded)
+            codes = np.pad(mel_slice,((0,0),(prompt_length,1)))
+            # codes = [[MEL_PAD_TOKEN_ID] * prompt_length for _ in range(mel_dim)]
+            # for book_idx, book in zip(range(mel_dim), mel_slice):
+            #     for j in book:
+            #         codes[book_idx].append(j)
+            # for book in codes:
+            #     book.extend([MEL_PAD_TOKEN_ID] * 1)
+            tokens = np.asarray(tokens)
+            codes = np.asarray(codes)
+            mel = codes[:-1]
+            f0 = codes[-1]
+            f0 = f0_to_coarse_numpy(f0)
+            iter_count+=1
 
-        #     example = tf.train.Example(
-        #             features=tf.train.Features(
-        #                 feature={
-        #                     'tokens': tf.train.Feature(
-        #                         bytes_list=tf.train.BytesList(value=[tf.io.serialize_tensor(tokens).numpy()])),
-        #                     'mel': tf.train.Feature(
-        #                         bytes_list=tf.train.BytesList(value=[tf.io.serialize_tensor(mel).numpy()])),
-        #                     'f0':tf.train.Feature(
-        #                         bytes_list=tf.train.BytesList(value=[tf.io.serialize_tensor(f0).numpy()])),
-        #                     'speaker_id':tf.train.Feature(
-        #                         bytes_list=tf.train.BytesList(value=[tf.io.serialize_tensor(speaker_id).numpy()])),
-        #                 }
-        #             )
-        #         )
-        #     q.put(example.SerializeToString())
-            #writer.write(example.SerializeToString())
+            example = tf.train.Example(
+                    features=tf.train.Features(
+                        feature={
+                            'tokens': tf.train.Feature(
+                                bytes_list=tf.train.BytesList(value=[tf.io.serialize_tensor(tokens).numpy()])),
+                            'mel': tf.train.Feature(
+                                bytes_list=tf.train.BytesList(value=[tf.io.serialize_tensor(mel).numpy()])),
+                            'f0':tf.train.Feature(
+                                bytes_list=tf.train.BytesList(value=[tf.io.serialize_tensor(f0).numpy()])),
+                            'speaker_id':tf.train.Feature(
+                                bytes_list=tf.train.BytesList(value=[tf.io.serialize_tensor(speaker_id).numpy()])),
+                        }
+                    )
+                )
+            q.put(example.SerializeToString())
+            writer.write(example.SerializeToString())
