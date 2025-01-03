@@ -314,7 +314,7 @@ if __name__ == "__main__":
     for item in multihost_gen:
         speaker_arr = jax.device_put(item["speaker_id"],out_sharding)
         speaker_arr = np.asarray(speaker_arr)
-        if -1 in speaker_arr.tolist():
+        if np.any(speaker_arr==-1):
             q.put(None)
             q.join()
             writer.close()
