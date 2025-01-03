@@ -284,27 +284,27 @@ if __name__ == "__main__":
     
     MEL_PAD_TOKEN_ID = 0
     iter_count = 0
-    os.makedirs(os.path.join(mount_point,"dataset2"),exist_ok=True)
-    writer = ArrayRecordWriter(os.path.join(mount_point,f"dataset2/hifi_tts_train-shared-{jax.process_index()}.arrayrecord"), 'group_size:1')
-    q = queue.Queue()
+    # os.makedirs(os.path.join(mount_point,"dataset2"),exist_ok=True)
+    # writer = ArrayRecordWriter(os.path.join(mount_point,f"dataset2/hifi_tts_train-shared-{jax.process_index()}.arrayrecord"), 'group_size:1')
+    # q = queue.Queue()
 
-    def writer_thread(q, writer):
-       while True:
-            try:
-                data = q.get(timeout=1)  # 设置超时，避免无限阻塞
-                if data is None:  # 哨兵值，用于结束线程
-                    q.task_done()
-                    break
-                writer.write(data)
-                q.task_done()  # 标记任务完成
-                #print(f"Task completed. Remaining tasks: {q.qsize()}")
-            except queue.Empty:
-                continue
+    # def writer_thread(q, writer):
+    #    while True:
+    #         try:
+    #             data = q.get(timeout=1)  # 设置超时，避免无限阻塞
+    #             if data is None:  # 哨兵值，用于结束线程
+    #                 q.task_done()
+    #                 break
+    #             writer.write(data)
+    #             q.task_done()  # 标记任务完成
+    #             #print(f"Task completed. Remaining tasks: {q.qsize()}")
+    #         except queue.Empty:
+    #             continue
 
-    # 创建并启动写入线程
-    t = threading.Thread(target=writer_thread, args=(q, writer))
-    t.daemon = True 
-    t.start()
+    # # 创建并启动写入线程
+    # t = threading.Thread(target=writer_thread, args=(q, writer))
+    # t.daemon = True 
+    # t.start()
 
     mel_x_sharding = get_sharding_for_spec(PartitionSpec("data"))
     x_sharding = get_sharding_for_spec(PartitionSpec("data"))
@@ -313,13 +313,13 @@ if __name__ == "__main__":
 
     batch_count = 0 
     for item in multihost_gen:
-        speaker_arr = jax.device_put(item["speaker_id"],out_sharding)
-        speaker_arr = np.asarray(speaker_arr)
-        if np.any(speaker_arr==-1):
-            q.put(None)
-            q.join()
-            writer.close()
-            break
+        # speaker_arr = jax.device_put(item["speaker_id"],out_sharding)
+        # speaker_arr = np.asarray(speaker_arr)
+        # if np.any(speaker_arr==-1):
+        #     q.put(None)
+        #     q.join()
+        #     writer.close()
+        #     break
         batch_count += 1
         print(f"batch {batch_count} round {iter_count}",flush=True)
             
