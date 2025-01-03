@@ -1,8 +1,6 @@
 from dataclasses import dataclass
 import queue
 import threading
-# from time import sleep
-# from typing import List
 import datasets
 import grain.python as grain
 import multihost_dataloading
@@ -20,7 +18,6 @@ from librosa.filters import mel as librosa_mel_fn
 import audax.core.stft
 import jax_fcpe
 from flax.core import FrozenDict, copy
-#from collections import Counter
 import os
 from array_record.python.array_record_module import ArrayRecordWriter
 from jax.experimental.compilation_cache import compilation_cache as cc
@@ -29,7 +26,6 @@ import shlex
 from datasets import disable_caching
 disable_caching()
 os.environ["HF_DATASETS_IN_MEMORY_MAX_SIZE"]=str(1024*1024*1024*64)
-#import atexit
 cc.set_cache_dir("/tmp/jax_cache")
 DEVICE = "tpu"
 MAX_LENGTH_AUDIO_44K = 30 * 44100
@@ -38,6 +34,7 @@ MAX_LENGTH_TEXT = 15000
 PER_DEVICE_BATCH_SIZE = 16
 SOURCE_SAMPLERATE = 16000
 NUM_THREADS=4
+DATASET_FOLDER_NAME = "dataset3"
 @dataclass
 class Output:
     tokens: np.ndarray
@@ -205,13 +202,13 @@ if __name__ == "__main__":
     #     name="all",
     #     split="train.clean",
     #     streaming=True,
-    # ).select_columns(["text","audio","speaker"])
+    # ).select_columns(["text_normalized","audio","speaker"]).rename_column("text_normalized", "text")
     # ds2 = datasets.load_dataset(
     #     "MikhailT/hifi-tts",
     #     name="all",
     #     split="train.other",
     #     streaming=True,
-    # ).select_columns(["text","audio","speaker"])
+    # ).select_columns(["text_normalized","audio","speaker"]).rename_column("text_normalized", "text")
     ds3 = datasets.load_dataset(
         "fbs0/mls_eng_10k_added_text",
         split="train",
@@ -285,8 +282,8 @@ if __name__ == "__main__":
     
     MEL_PAD_TOKEN_ID = 0
     iter_count = 0
-    os.makedirs(os.path.join(mount_point,"dataset3"),exist_ok=True)
-    writer = ArrayRecordWriter(os.path.join(mount_point,f"dataset3/hifi_tts_train-shared-{jax.process_index()}.arrayrecord"), 'group_size:1')
+    os.makedirs(os.path.join(mount_point,DATASET_FOLDER_NAME),exist_ok=True)
+    writer = ArrayRecordWriter(os.path.join(mount_point,f"{DATASET_FOLDER_NAME}/hifi_tts_train-shared-{jax.process_index()}.arrayrecord"), 'group_size:1')
     q = queue.Queue()
 
     def writer_thread(q, writer):
@@ -311,7 +308,12 @@ if __name__ == "__main__":
     x_sharding = get_sharding_for_spec(PartitionSpec("data"))
     out_sharding = get_sharding_for_spec(PartitionSpec(None))
     
-    
+    @partial(jax.jit,in_shardings=(get_sharding_for_spec(PartitionSpec(None)),x_sharding),out_shardings=out_sharding)
+    def f0_process_wrap(params,audio):
+        f0_arr = jax_fcpe.get_f0(audio,sr=16000,model=fcpe_model,params=params)
+        f0_arr = jax.image.resize(f0_arr,shape=(f0_arr.shape[0],mel_arr.shape[-1],1),method="nearest")
+        return f0_arr
+    jitted_get_mel = jax.jit(get_mel, in_shardings=mel_x_sharding,out_shardings=out_sharding)
     batch_count = 0 
     for item in multihost_gen:
         speaker_arr = jax.device_put(item["speaker_id"],out_sharding)
@@ -323,21 +325,8 @@ if __name__ == "__main__":
             break
         batch_count += 1
         print(f"batch {batch_count} round {iter_count}",flush=True)
-        # if iter_count%10240 == 0:
-        #     print(f"round {iter_count}",flush=True)
-        #     num = iter_count//10240
-        #     if writer is not None:
-        #         writer.close() 
-        #     writer = ArrayRecordWriter(os.path.join(mount_point,f"dataset2/hifi_tts_train_part_{num}-shared-{jax.process_index()}.arrayrecord"), 'group_size:1')
             
-        mel_arr  = jax.jit(get_mel, in_shardings=mel_x_sharding,out_shardings=out_sharding)(item["audio_44k"])
-        @partial(jax.jit,in_shardings=(get_sharding_for_spec(PartitionSpec(None)),x_sharding),out_shardings=out_sharding)
-        def f0_process_wrap(params,audio):
-            f0_arr = jax_fcpe.get_f0(audio,sr=16000,model=fcpe_model,params=params)
-            f0_arr = jax.image.resize(f0_arr,shape=(f0_arr.shape[0],mel_arr.shape[-1],1),method="nearest")
-            return f0_arr
-        # f0_arr = jax.jit(partial(jax_fcpe.get_f0,sr=16000,model=fcpe_model,params=fcpe_params), in_shardings=x_sharding,out_shardings=out_sharding)(item["audio_16k"])
-        # f0_arr = jax.image.resize(f0_arr,shape=(f0_arr.shape[0],mel_arr.shape[-1],1),method="nearest")
+        mel_arr  = jitted_get_mel(item["audio_44k"])
         f0_arr = f0_process_wrap(fcpe_params,item["audio_16k"])
         text_arr = jax.device_put(item["text"],out_sharding)
 
@@ -350,7 +339,7 @@ if __name__ == "__main__":
             n_frames = item["audio_length"][k]//512
             text_length = int(item["text_length"][k])
             text_tokens = text_arr[k][:text_length]
-            speaker_id = speaker_arr[k]
+            speaker_id = item["speaker_id"][k]
             
             mel_slice = mel_arr[k,:,:n_frames]
             f0_slice = f0_arr[k,:n_frames].transpose(1,0)
@@ -382,12 +371,6 @@ if __name__ == "__main__":
             )
             prompt_length = len(encoded)
             codes = np.pad(mel_slice,((0,0),(prompt_length,1)))
-            # codes = [[MEL_PAD_TOKEN_ID] * prompt_length for _ in range(mel_dim)]
-            # for book_idx, book in zip(range(mel_dim), mel_slice):
-            #     for j in book:
-            #         codes[book_idx].append(j)
-            # for book in codes:
-            #     book.extend([MEL_PAD_TOKEN_ID] * 1)
             tokens = np.asarray(tokens)
             codes = np.asarray(codes)
             mel = codes[:-1]
@@ -410,4 +393,4 @@ if __name__ == "__main__":
                     )
                 )
             q.put(example.SerializeToString())
-            #writer.write(example.SerializeToString())
+            writer.write(example.SerializeToString())

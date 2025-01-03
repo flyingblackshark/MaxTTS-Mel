@@ -1,8 +1,6 @@
 from dataclasses import dataclass
 import queue
 import threading
-# from time import sleep
-# from typing import List
 import datasets
 import grain.python as grain
 import multihost_dataloading
@@ -20,13 +18,11 @@ from librosa.filters import mel as librosa_mel_fn
 import audax.core.stft
 import jax_fcpe
 from flax.core import FrozenDict, copy
-#from collections import Counter
 import os
 from array_record.python.array_record_module import ArrayRecordWriter
 from jax.experimental.compilation_cache import compilation_cache as cc
 import subprocess
 import shlex
-#import atexit
 from datasets import disable_caching
 disable_caching()
 os.environ["HF_DATASETS_IN_MEMORY_MAX_SIZE"]=str(1024*1024*1024*64)
@@ -38,6 +34,7 @@ MAX_LENGTH_TEXT = 15000
 PER_DEVICE_BATCH_SIZE = 16
 SOURCE_SAMPLERATE = 44100
 NUM_THREADS=4
+DATASET_FOLDER_NAME = "dataset2"
 @dataclass
 class Output:
     tokens: np.ndarray
@@ -285,8 +282,8 @@ if __name__ == "__main__":
     
     MEL_PAD_TOKEN_ID = 0
     iter_count = 0
-    os.makedirs(os.path.join(mount_point,"dataset2"),exist_ok=True)
-    writer = ArrayRecordWriter(os.path.join(mount_point,f"dataset2/hifi_tts_train-shared-{jax.process_index()}.arrayrecord"), 'group_size:1')
+    os.makedirs(os.path.join(mount_point,DATASET_FOLDER_NAME),exist_ok=True)
+    writer = ArrayRecordWriter(os.path.join(mount_point,f"{DATASET_FOLDER_NAME}/hifi_tts_train-shared-{jax.process_index()}.arrayrecord"), 'group_size:1')
     q = queue.Queue()
 
     def writer_thread(q, writer):
@@ -316,6 +313,7 @@ if __name__ == "__main__":
         f0_arr = jax_fcpe.get_f0(audio,sr=16000,model=fcpe_model,params=params)
         f0_arr = jax.image.resize(f0_arr,shape=(f0_arr.shape[0],mel_arr.shape[-1],1),method="nearest")
         return f0_arr
+    jitted_get_mel = jax.jit(get_mel, in_shardings=mel_x_sharding,out_shardings=out_sharding)
     batch_count = 0 
     for item in multihost_gen:
         speaker_arr = jax.device_put(item["speaker_id"],out_sharding)
@@ -328,7 +326,7 @@ if __name__ == "__main__":
         batch_count += 1
         print(f"batch {batch_count} round {iter_count}",flush=True)
             
-        mel_arr  = jax.jit(get_mel, in_shardings=mel_x_sharding,out_shardings=out_sharding)(item["audio_44k"])
+        mel_arr  = jitted_get_mel(item["audio_44k"])
         f0_arr = f0_process_wrap(fcpe_params,item["audio_16k"])
         text_arr = jax.device_put(item["text"],out_sharding)
 
@@ -373,12 +371,6 @@ if __name__ == "__main__":
             )
             prompt_length = len(encoded)
             codes = np.pad(mel_slice,((0,0),(prompt_length,1)))
-            # codes = [[MEL_PAD_TOKEN_ID] * prompt_length for _ in range(mel_dim)]
-            # for book_idx, book in zip(range(mel_dim), mel_slice):
-            #     for j in book:
-            #         codes[book_idx].append(j)
-            # for book in codes:
-            #     book.extend([MEL_PAD_TOKEN_ID] * 1)
             tokens = np.asarray(tokens)
             codes = np.asarray(codes)
             mel = codes[:-1]
