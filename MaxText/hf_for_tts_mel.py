@@ -342,9 +342,9 @@ if __name__ == "__main__":
 
         slice_size = PER_DEVICE_BATCH_SIZE * jax.device_count() // jax.process_count()
 
-        mel_arr = np.asarray(mel_arr)
-        text_arr = np.asarray(text_arr)
-        f0_arr = np.asarray(f0_arr)
+        # mel_arr = np.asarray(mel_arr)
+        # text_arr = np.asarray(text_arr)
+        # f0_arr = np.asarray(f0_arr)
         # for k in range(slice_size*jax.process_index(),slice_size*(jax.process_index()+1)):
         #     n_frames = item["audio_length"][k]//512
         #     text_length = int(item["text_length"][k])
