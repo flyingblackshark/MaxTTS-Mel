@@ -313,13 +313,13 @@ if __name__ == "__main__":
 
     batch_count = 0 
     for item in multihost_gen:
-        speaker_arr = jax.device_put(item["speaker_id"],out_sharding)
-        speaker_arr = np.asarray(speaker_arr)
-        if np.any(speaker_arr==-1):
-            q.put(None)
-            q.join()
-            writer.close()
-            break
+        # speaker_arr = jax.device_put(item["speaker_id"],out_sharding)
+        # speaker_arr = np.asarray(speaker_arr)
+        # if np.any(speaker_arr==-1):
+        #     q.put(None)
+        #     q.join()
+        #     writer.close()
+        #     break
         batch_count += 1
         print(f"batch {batch_count} round {iter_count}",flush=True)
         # if iter_count%10240 == 0:
