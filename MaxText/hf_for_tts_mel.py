@@ -274,7 +274,7 @@ if __name__ == "__main__":
         sampler=dummy_index_sampler,
         worker_count=1,  # only supports one worker for now, more workers results in duplicated data
         worker_buffer_size=1,
-        read_options=grain.ReadOptions(num_threads=1, prefetch_buffer_size=128),
+        read_options=grain.ReadOptions(num_threads=1, prefetch_buffer_size=1024),
     )
     
 
