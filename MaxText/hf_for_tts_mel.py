@@ -313,13 +313,13 @@ if __name__ == "__main__":
 
     batch_count = 0 
     for item in multihost_gen:
-        # speaker_arr = jax.device_put(item["speaker_id"],out_sharding)
-        # speaker_arr = np.asarray(speaker_arr)
-        # if np.any(speaker_arr==-1):
-        #     q.put(None)
-        #     q.join()
-        #     writer.close()
-        #     break
+        speaker_arr = jax.device_put(item["speaker_id"],out_sharding)
+        speaker_arr = np.asarray(speaker_arr)
+        if np.any(speaker_arr==-1):
+            q.put(None)
+            q.join()
+            writer.close()
+            break
         batch_count += 1
         print(f"batch {batch_count} round {iter_count}",flush=True)
         # if iter_count%10240 == 0:
@@ -349,7 +349,7 @@ if __name__ == "__main__":
             n_frames = item["audio_length"][k]//512
             text_length = int(item["text_length"][k])
             text_tokens = text_arr[k][:text_length]
-            speaker_id = speaker_arr[k]
+            speaker_id = item["speaker_id"][k]
             
             mel_slice = mel_arr[k,:,:n_frames]
             f0_slice = f0_arr[k,:n_frames].transpose(1,0)
