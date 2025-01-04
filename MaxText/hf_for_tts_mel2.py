@@ -35,7 +35,7 @@ PER_DEVICE_BATCH_SIZE = 16
 SOURCE_SAMPLERATE = 16000
 HF_NUM_THREADS = 1
 DATASET_FOLDER_NAME = "dataset3"
-DATA_PER_WRITER = 10240  # 每个 writer 处理的数据数量
+DATA_PER_WRITER = 20480  # 每个 writer 处理的数据数量
 @dataclass
 class Output:
     tokens: np.ndarray
