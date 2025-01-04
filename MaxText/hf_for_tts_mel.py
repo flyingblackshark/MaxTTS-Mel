@@ -33,7 +33,7 @@ MAX_LENGTH_AUDIO_16K = 30 * 16000
 MAX_LENGTH_TEXT = 15000
 PER_DEVICE_BATCH_SIZE = 16
 SOURCE_SAMPLERATE = 44100
-NUM_THREADS=1
+HF_NUM_THREADS = 1
 DATASET_FOLDER_NAME = "dataset2"
 @dataclass
 class Output:
@@ -247,7 +247,7 @@ if __name__ == "__main__":
     dataset = _input_pipeline_utils.HFDataSource(dataset,
                                                 jax.process_index(),
                                                 jax.process_count(),
-                                                NUM_THREADS,
+                                                HF_NUM_THREADS,
                                                 False,
                                                 15000,
                                                 "text",
@@ -272,7 +272,7 @@ if __name__ == "__main__":
         sampler=dummy_index_sampler,
         worker_count=1,  # only supports one worker for now, more workers results in duplicated data
         worker_buffer_size=1,
-        read_options=grain.ReadOptions(num_threads=NUM_THREADS, prefetch_buffer_size=128),
+        read_options=grain.ReadOptions(num_threads=HF_NUM_THREADS, prefetch_buffer_size=128),
     )
     
 
@@ -339,7 +339,7 @@ if __name__ == "__main__":
             n_frames = item["audio_length"][k]//512
             text_length = int(item["text_length"][k])
             text_tokens = text_arr[k][:text_length]
-            speaker_id = item["speaker_id"][k]
+            speaker_id = speaker_arr[k]
             
             mel_slice = mel_arr[k,:,:n_frames]
             f0_slice = f0_arr[k,:n_frames].transpose(1,0)
