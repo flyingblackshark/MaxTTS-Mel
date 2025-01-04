@@ -25,7 +25,7 @@ import subprocess
 import shlex
 from datasets import disable_caching
 disable_caching()
-os.environ["HF_DATASETS_IN_MEMORY_MAX_SIZE"]=str(1024*1024*1024*64)
+#os.environ["HF_DATASETS_IN_MEMORY_MAX_SIZE"]=str(1024*1024*1024*64)
 cc.set_cache_dir("/tmp/jax_cache")
 DEVICE = "tpu"
 MAX_LENGTH_AUDIO_44K = 30 * 44100
