@@ -414,4 +414,4 @@ if __name__ == "__main__":
                     )
                 )
             q.put(example.SerializeToString())
-            writer.write(example.SerializeToString())
+            
