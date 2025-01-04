@@ -293,7 +293,7 @@ if __name__ == "__main__":
 
     def writer_thread(q, mount_point, dataset_folder_name, data_per_writer):
        sharding_count = 0
-       writer = ArrayRecordWriter(os.path.join(mount_point,f"{dataset_folder_name}/mls-eng-10k-shared.arrayrecord-{jax.process_index()}-of-{jax.process_count()}"), 'group_size:1')
+       writer = ArrayRecordWriter(os.path.join(mount_point,f"{dataset_folder_name}/mls-eng-10k-{sharding_count}.arrayrecord-{jax.process_index()}-of-{jax.process_count()}"), 'group_size:1')
        processed_count = 0  # 计数器
        while True:
             try:
