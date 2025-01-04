@@ -286,7 +286,7 @@ if __name__ == "__main__":
     MEL_PAD_TOKEN_ID = 0
     iter_count = 0
     os.makedirs(os.path.join(mount_point,DATASET_FOLDER_NAME),exist_ok=True)
-    writer = ArrayRecordWriter(os.path.join(mount_point,f"{DATASET_FOLDER_NAME}/hifi_tts_train-shared-{jax.process_index()}.arrayrecord"), 'group_size:1')
+    writer = ArrayRecordWriter(os.path.join(mount_point,f"{DATASET_FOLDER_NAME}/mls-eng-10k-shared.arrayrecord-{jax.process_index()}-of-{jax.process_count()}"), 'group_size:1')
     q = queue.Queue()
 
     def writer_thread(q, writer):
