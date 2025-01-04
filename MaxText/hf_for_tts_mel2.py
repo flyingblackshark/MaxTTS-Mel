@@ -210,12 +210,12 @@ if __name__ == "__main__":
     #     split="train.other",
     #     streaming=True,
     # ).select_columns(["text_normalized","audio","speaker"]).rename_column("text_normalized", "text")
-    ds3 = datasets.load_dataset(
+    dataset = datasets.load_dataset(
         "fbs0/mls_eng_10k_added_text",
         split="train",
         streaming=True,
     ).select_columns(["text","audio","speaker_id"]).rename_column("speaker_id", "speaker")
-    dataset = datasets.concatenate_datasets([ds3])
+    #dataset = datasets.concatenate_datasets([ds3])
     cl100k_base = tiktoken.get_encoding("cl100k_base")
     
     enc = tiktoken.Encoding(
