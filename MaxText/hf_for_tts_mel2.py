@@ -35,6 +35,7 @@ PER_DEVICE_BATCH_SIZE = 16
 SOURCE_SAMPLERATE = 16000
 HF_NUM_THREADS = 1
 DATASET_FOLDER_NAME = "dataset3"
+DATA_PER_WRITER = 10240  # 每个 writer 处理的数据数量
 @dataclass
 class Output:
     tokens: np.ndarray
@@ -285,25 +286,42 @@ if __name__ == "__main__":
     
     MEL_PAD_TOKEN_ID = 0
     iter_count = 0
+    
     os.makedirs(os.path.join(mount_point,DATASET_FOLDER_NAME),exist_ok=True)
-    writer = ArrayRecordWriter(os.path.join(mount_point,f"{DATASET_FOLDER_NAME}/mls-eng-10k-shared.arrayrecord-{jax.process_index()}-of-{jax.process_count()}"), 'group_size:1')
+    #writer = ArrayRecordWriter(os.path.join(mount_point,f"{DATASET_FOLDER_NAME}/mls-eng-10k-shared.arrayrecord-{jax.process_index()}-of-{jax.process_count()}"), 'group_size:1')
     q = queue.Queue()
 
-    def writer_thread(q, writer):
+    def writer_thread(q, mount_point, dataset_folder_name, data_per_writer):
+       sharding_count = 0
+       writer = ArrayRecordWriter(os.path.join(mount_point,f"{dataset_folder_name}/mls-eng-10k-shared.arrayrecord-{jax.process_index()}-of-{jax.process_count()}"), 'group_size:1')
+       processed_count = 0  # 计数器
        while True:
             try:
                 data = q.get(timeout=1)  # 设置超时，避免无限阻塞
                 if data is None:  # 哨兵值，用于结束线程
+                    writer.close()
                     q.task_done()
                     break
                 writer.write(data)
+                processed_count += 1
                 q.task_done()  # 标记任务完成
-                #print(f"Task completed. Remaining tasks: {q.qsize()}")
+                if processed_count >= data_per_writer :
+                    writer.close()  # 关闭当前 writer
+                    sharding_count += 1  # 增加文件计数
+                    processed_count = 0  # 重置计数器
+
+                    # 创建新的 writer
+                    writer = tf.io.ArrayRecordWriter(
+                        os.path.join(
+                            mount_point,
+                            f"{dataset_folder_name}/mls-eng-10k-{sharding_count}.arrayrecord-{jax.process_index()}-of-{jax.process_count()}"),
+                        'group_size:1'
+                    )
             except queue.Empty:
                 continue
 
     # 创建并启动写入线程
-    t = threading.Thread(target=writer_thread, args=(q, writer))
+    t = threading.Thread(target=writer_thread, args=(q, mount_point,DATASET_FOLDER_NAME,DATA_PER_WRITER))
     t.daemon = True 
     t.start()
 
@@ -324,7 +342,7 @@ if __name__ == "__main__":
         if np.any(speaker_arr==-1):
             q.put(None)
             q.join()
-            writer.close()
+            #writer.close()
             break
         batch_count += 1
         print(f"batch {batch_count} round {iter_count}",flush=True)
