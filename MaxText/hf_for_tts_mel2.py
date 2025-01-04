@@ -304,19 +304,14 @@ if __name__ == "__main__":
                     break
                 writer.write(data)
                 processed_count += 1
-                q.task_done()  # 标记任务完成
                 if processed_count >= data_per_writer :
                     writer.close()  # 关闭当前 writer
                     sharding_count += 1  # 增加文件计数
                     processed_count = 0  # 重置计数器
-
                     # 创建新的 writer
-                    writer = tf.io.ArrayRecordWriter(
-                        os.path.join(
-                            mount_point,
-                            f"{dataset_folder_name}/mls-eng-10k-{sharding_count}.arrayrecord-{jax.process_index()}-of-{jax.process_count()}"),
-                        'group_size:1'
-                    )
+                    writer = ArrayRecordWriter(os.path.join(mount_point,f"{dataset_folder_name}/mls-eng-10k-{sharding_count}.arrayrecord-{jax.process_index()}-of-{jax.process_count()}"), 'group_size:1')
+                q.task_done()  # 标记任务完成
+ 
             except queue.Empty:
                 continue
 
