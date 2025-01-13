@@ -419,7 +419,7 @@ def loss_fn(model, config, data, dropout_rng, params, is_train=True):
     for k, v in data.items():
       data[k] = v[: config.micro_batch_size_to_eval_on, :]
 
-  (logits,mel,stop_prob,f0_predict), intermediate_outputs = model.apply(
+  (logits,mel,f0_predict), intermediate_outputs = model.apply(
       params,
       data["inputs"],
       data["inputs_position"],
