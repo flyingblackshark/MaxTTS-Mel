@@ -459,16 +459,16 @@ class Decoder(nn.Module):
     mel = nn.with_logical_constraint(
         mel, ("activation_embed_and_logits_batch", "activation_length", "activation_vocab")
     )
-    stop_prob = linears.DenseGeneral(
-        1,
-        weight_dtype=cfg.weight_dtype,
-        dtype=jnp.float32 if cfg.logits_dot_in_fp32 else cfg.dtype,  # for logit training stability
-        kernel_axes=("embed", "vocab"),
-        name="stop_prob_dense",
-        matmul_precision=self.config.matmul_precision,
-    )(y)
+    # stop_prob = linears.DenseGeneral(
+    #     1,
+    #     weight_dtype=cfg.weight_dtype,
+    #     dtype=jnp.float32 if cfg.logits_dot_in_fp32 else cfg.dtype,  # for logit training stability
+    #     kernel_axes=("embed", "vocab"),
+    #     name="stop_prob_dense",
+    #     matmul_precision=self.config.matmul_precision,
+    # )(y)
 
-    stop_prob = nn.sigmoid(stop_prob)
+    # stop_prob = nn.sigmoid(stop_prob)
 
     f0_predict = linears.DenseGeneral(
         cfg.mel_bins,
@@ -479,7 +479,7 @@ class Decoder(nn.Module):
         matmul_precision=self.config.matmul_precision,
     )(y)
 
-    return logits,mel,stop_prob,f0_predict
+    return logits,mel,f0_predict
 
 
 class Transformer(nn.Module):
@@ -534,7 +534,7 @@ class Transformer(nn.Module):
           f" which is always {common_types.DECODING_ACTIVE_SEQUENCE_INDICATOR}."
       )
 
-    logits,mel,stop_prob,f0_predict = self.decoder(
+    logits,mel,f0_predict = self.decoder(
         decoder_input_tokens=decoder_input_tokens,
         decoder_positions=decoder_positions,
         decoder_mel=decoder_mel,
@@ -543,4 +543,4 @@ class Transformer(nn.Module):
         deterministic=not enable_dropout,
         model_mode=model_mode,
     )
-    return logits,mel,stop_prob,f0_predict
+    return logits,mel,f0_predict

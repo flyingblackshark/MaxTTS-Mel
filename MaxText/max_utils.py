@@ -626,7 +626,7 @@ def init_initial_state(model, tx, config, is_training, key):
       {"params": key, "dropout": key, "aqt": key, "sample": key},
       np.ones(input_shape, dtype=jnp.int32),
       np.ones(input_shape, dtype=jnp.int32),
-      np.ones(mel_input_shape, dtype=jnp.int32),
+      np.ones(mel_input_shape, dtype=jnp.float32),
       np.ones(input_shape, dtype=jnp.int32),
   )
   if is_training:
@@ -924,10 +924,12 @@ def get_prefill_kv_cache_annotations(model, config, rng, mesh):
         config.global_batch_size_to_load,
         config.max_prefill_predict_length,
     )
-
+    mel_input_shape = (config.global_batch_size_to_load, config.max_prefill_predict_length, config.mel_bins)
     model_vars = model.init(
         {"params": rng, "dropout": rng, "aqt": rng},
         jnp.ones(input_shape),
+        jnp.ones(input_shape),
+        jnp.ones(mel_input_shape),
         jnp.ones(input_shape),
         model_mode=common_types.MODEL_MODE_PREFILL,
     )
@@ -950,10 +952,12 @@ def get_kv_cache_annotations(model, config, rng, mesh):
         config.global_batch_size_to_load,
         1,
     )
-
+    mel_input_shape = (config.global_batch_size_to_load, 1, config.mel_bins)
     model_vars = model.init(
         {"params": rng, "dropout": rng, "aqt": rng},
         jnp.ones(input_shape),
+        jnp.ones(input_shape),
+        jnp.ones(mel_input_shape),
         jnp.ones(input_shape),
         model_mode=common_types.MODEL_MODE_AUTOREGRESSIVE,
     )

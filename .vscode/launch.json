@@ -16,6 +16,26 @@
     "steps=1000"]
     },
     {
+      "name": "Debug MaxText Decode 2",
+      "type": "python",
+      "request": "launch",
+      "console": "integratedTerminal",
+      "justMyCode": false,
+      "python": "python3",
+      "program": "${workspaceFolder}/MaxText/decode.py",
+      "args": ["MaxText/configs/base.yml", 
+               "run_name=runner_$(date +%Y-%m-%d-%H-%M)", 
+               "load_parameters_path=gs://fbs-us2/maxtext_output/meltest11/checkpoints/560000/items",
+               "max_prefill_predict_length=64",
+               "max_target_length=4096",
+               "ici_fsdp_parallelism=1",
+               "ici_tensor_parallelism=-1",
+               "ici_autoregressive_parallelism=1",
+               //"per_device_batch_size=11",
+               "attention=dot_product"
+              ]
+    },
+    {
       "name": "Debug MaxText Decode",
       "type": "python",
       "request": "launch",
