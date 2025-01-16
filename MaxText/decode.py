@@ -141,7 +141,7 @@ def main(config):
             #extent=[time_bins[0], time_bins[-1], 0, mel_spectrogram.shape[0]])
   plt.colorbar(label='Power (dB)')
   plt.title("Mel-Spectrogram")
-  plt.xlabel("Time (s)")
+  plt.xlabel("Frames (86 frame = 1 s)")
   plt.ylabel("Mel Filter Index")
   plt.tight_layout()
 

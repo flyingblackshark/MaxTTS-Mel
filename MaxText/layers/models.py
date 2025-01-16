@@ -284,7 +284,7 @@ class Decoder(nn.Module):
 
     # [batch, length] -> [batch, length, emb_dim]
     y = self.shared_embedding(decoder_input_tokens.astype("int32"))
-    mask = (decoder_input_tokens != cfg.semantic_code)
+    mask = (decoder_input_tokens == cfg.semantic_code)
     y += self.f0_embedding(decoder_f0.astype("int32")) * mask[...,jnp.newaxis]
     y +=  linears.DenseGeneral(
           cfg.emb_dim,
