@@ -135,14 +135,13 @@ def main(config):
   mel_res = jnp.concatenate(results_mel)
   # 转换为分贝单位
   import matplotlib.pyplot as plt
-
   plt.figure(figsize=(10, 6))
   plt.imshow(mel_res.transpose(1,0), aspect='auto', origin='lower',)
             #extent=[time_bins[0], time_bins[-1], 0, mel_spectrogram.shape[0]])
   plt.colorbar(label='Power (dB)')
   plt.title("Mel-Spectrogram")
   plt.xlabel("Frames (86 frame = 1 s)")
-  plt.ylabel("Mel Filter Index")
+  plt.ylabel("Mel Bands")
   plt.tight_layout()
 
   # 保存图片

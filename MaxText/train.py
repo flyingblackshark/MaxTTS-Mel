@@ -433,7 +433,9 @@ def loss_fn(model, config, data, dropout_rng, params, is_train=True):
   mel_mask = (data["inputs"] == config.semantic_code)
   one_hot_targets = jax.nn.one_hot(data["targets"], config.vocab_size)
   xent, _ = max_utils.cross_entropy_with_logits(logits, one_hot_targets, 0.0)
-  xent_mel = jnp.where(mel_mask[...,jnp.newaxis],jnp.mean(jnp.abs((mel - data["targets_mel"]))),0.)
+  xent_mel_l1 = jnp.where(mel_mask[...,jnp.newaxis],0.5 * jnp.abs(mel - data["targets_mel"]),0.)
+  xent_mel_l2 = jnp.where(mel_mask[...,jnp.newaxis],optax.l2_loss(mel - data["targets_mel"]),0.)
+  xent_mel = xent_mel_l1 + xent_mel_l2
   xent_mel = jnp.sum(xent_mel,axis=-1)
   one_hot_targets_f0 = jax.nn.one_hot(data["targets_f0"], config.mel_bins)
   xent_f0,_ = max_utils.cross_entropy_with_logits(f0_predict,one_hot_targets_f0,0.0)
