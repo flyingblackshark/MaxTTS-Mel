@@ -339,7 +339,7 @@ grain_eval_files: ''
 grain_worker_count: 1
 
 # Training loop
-steps: 300_001 # If set to -1 then will inherit value from learning_rate_schedule_steps
+steps: 600_001 # If set to -1 then will inherit value from learning_rate_schedule_steps
 log_period: 100 # Flushes Tensorboard
 
 jax_distributed_initialization_timeout: 300 # This is the default timeout in https://github.com/jax-ml/jax/blob/main/jax/_src/distributed.py
@@ -356,7 +356,7 @@ jax_debug_log_modules: "" # Set this to "jax" to enable jax verbose logging such
 learning_rate: 3.e-5
 cosine_learning_rate_final_fraction: 0.1
 warmup_steps_fraction: 0.1
-learning_rate_schedule_steps: 100_001 # By default the length of the schedule is set to the number of steps.
+learning_rate_schedule_steps: -1 # By default the length of the schedule is set to the number of steps.
 # However you may choose a longer schedule (learning_rate_schedule_steps > steps), in which case the training will end before
 # dropping fully down. Or you may choose a shorter schedule, where the unspecified steps will have a learning rate of 0.
 
