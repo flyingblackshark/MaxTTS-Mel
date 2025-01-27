@@ -456,7 +456,7 @@ def loss_fn(model, config, data, dropout_rng, params, is_train=True):
   total_loss_mel = jnp.sum(xent_mel)
   total_weights = jnp.sum(data["targets_segmentation"] != 0)
   loss = total_loss / (total_weights + EPS)
-  loss_kl = total_loss_kl / (total_weights * config.mel_bins + EPS)
+  loss_kl = total_loss_kl / (total_weights + EPS)
   #loss_f0 = total_loss_f0 / (total_weights + EPS)
   loss_mel = total_loss_mel / (total_weights * config.mel_bins + EPS)
   loss += loss_kl
