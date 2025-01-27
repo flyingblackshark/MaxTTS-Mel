@@ -438,7 +438,7 @@ class Decoder(nn.Module):
         y
     )  # We do not quantize the logits matmul.
 
-    mel_sample ,_ ,_ = fbs_layer.LatentSamplingModule(config=cfg, mesh=mesh, name=f"latenet_sample", quant=self.quant)(y)
+    mel_sample ,_ ,_ = fbs_layer.LatentSamplingModule(config=cfg, mesh=mesh, name=f"latenet_sample", quant=self.quant)(y, deterministic=deterministic)
 
     logits = nn.with_logical_constraint(
         logits, ("activation_embed_and_logits_batch", "activation_length", "activation_vocab")
