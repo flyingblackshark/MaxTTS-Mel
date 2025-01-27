@@ -435,7 +435,7 @@ def loss_fn(model, config, data, dropout_rng, params, is_train=True):
   xent, _ = max_utils.cross_entropy_with_logits(logits, one_hot_targets, 0.0)
   xent_mel_l1 = 0.5 * jnp.abs(mel - data["targets_mel"])
   xent_mel_l2 = optax.l2_loss(mel - data["targets_mel"])
-  xent_l_kl = 0.5 * jnp.mean(jnp.sum(mel_sigma **2 + (mel_mu - data["targets_mel"])**2 - 1 - 2 * jnp.log(mel_sigma), axis=-1))
+  xent_l_kl = 0.5 * jnp.sum(mel_sigma **2 + (mel_mu - data["targets_mel"])**2 - 1 - 2 * jnp.log(mel_sigma), axis=-1)
   xent_mel = xent_mel_l1 + xent_mel_l2 + xent_l_kl
   xent_mel = jnp.where(mel_mask[...,jnp.newaxis],xent_mel,0.)
   xent_mel = jnp.sum(xent_mel,axis=-1)
