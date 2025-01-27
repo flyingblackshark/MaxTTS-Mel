@@ -46,7 +46,7 @@ class LatentSamplingModule(nn.Module):
         inputs = checkpoint_name(inputs, "decoder_layer_input")
         # 线性层
         mu = linears.DenseGeneral(
-          cfg.mlp_dim,
+          cfg.mel_bins,
           dtype=cfg.dtype,
           weight_dtype=cfg.weight_dtype,
           kernel_axes=("embed", "mlp"),
@@ -56,7 +56,7 @@ class LatentSamplingModule(nn.Module):
         )(inputs)
         #mu = nn.Dense(self.latent_dim)(inputs)
         log_sigma = linears.DenseGeneral(
-          cfg.mlp_dim,
+          cfg.mel_bins,
           dtype=cfg.dtype,
           weight_dtype=cfg.weight_dtype,
           kernel_axes=("embed", "mlp"),
@@ -71,7 +71,7 @@ class LatentSamplingModule(nn.Module):
             z = mu
         else:  # 训练模式，进行采样
             key = self.make_rng("sample") #通常在实际应用中，key需要从外部传入，并根据需要进行分割
-            epsilon = jax.random.normal(key, (inputs.shape[0],inputs.shape[1], cfg.mlp_dim)) # inputs.shape[0]是batch size
+            epsilon = jax.random.normal(key, (inputs.shape[0],inputs.shape[1], cfg.mel_bins)) # inputs.shape[0]是batch size
             z = mu + sigma * epsilon
 
         # 多层感知机 (示例：两层 MLP)

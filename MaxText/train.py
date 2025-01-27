@@ -419,12 +419,12 @@ def loss_fn(model, config, data, dropout_rng, params, is_train=True):
     for k, v in data.items():
       data[k] = v[: config.micro_batch_size_to_eval_on, :]
 
-  (logits,mel,f0_predict), intermediate_outputs = model.apply(
+  (logits,mel, mel_mu, mel_sigma), intermediate_outputs = model.apply(
       params,
       data["inputs"],
       data["inputs_position"],
       data["inputs_mel"],
-      data["inputs_f0"],
+      #data["inputs_f0"],
       decoder_segment_ids=data["inputs_segmentation"],
       enable_dropout=config.enable_dropout if is_train else False,
       rngs={"dropout": rng1, "params": aqt_rng, "sample":sample_key},
@@ -433,27 +433,30 @@ def loss_fn(model, config, data, dropout_rng, params, is_train=True):
   mel_mask = (data["inputs"] == config.semantic_code)
   one_hot_targets = jax.nn.one_hot(data["targets"], config.vocab_size)
   xent, _ = max_utils.cross_entropy_with_logits(logits, one_hot_targets, 0.0)
-  xent_mel_l1 = jnp.where(mel_mask[...,jnp.newaxis],0.5 * jnp.abs(mel - data["targets_mel"]),0.)
-  xent_mel_l2 = jnp.where(mel_mask[...,jnp.newaxis],optax.l2_loss(mel - data["targets_mel"]),0.)
-  xent_mel = xent_mel_l1 + xent_mel_l2
+  xent_mel_l1 = 0.5 * jnp.abs(mel - data["targets_mel"])
+  xent_mel_l2 = optax.l2_loss(mel - data["targets_mel"])
+  xent_l_kl = 0.5 * jnp.mean(jnp.sum(mel_sigma **2 + (mel_mu - data["targets_mel"])**2 - 1 - 2 * jnp.log(mel_sigma), axis=-1))
+  xent_mel = xent_mel_l1 + xent_mel_l2 + xent_l_kl
+  xent_mel = jnp.where(mel_mask[...,jnp.newaxis],xent_mel,0.)
   xent_mel = jnp.sum(xent_mel,axis=-1)
-  one_hot_targets_f0 = jax.nn.one_hot(data["targets_f0"], config.mel_bins)
-  xent_f0,_ = max_utils.cross_entropy_with_logits(f0_predict,one_hot_targets_f0,0.0)
-  xent_f0 = jnp.where(mel_mask,xent_f0,0.)
+  
+  #one_hot_targets_f0 = jax.nn.one_hot(data["targets_f0"], config.mel_bins)
+  # xent_f0,_ = max_utils.cross_entropy_with_logits(f0_predict,one_hot_targets_f0,0.0)
+  # xent_f0 = jnp.where(mel_mask,xent_f0,0.)
   #xent = xent + xent_f0 + xent_mel
   xent = nn.with_logical_constraint(xent, ("activation_embed_and_logits_batch", "activation_length"))
   # Mask out paddings at the end of each example.
   xent = xent * (data["targets_segmentation"] != 0)
-  xent_f0 = xent_f0 * (data["targets_segmentation"] != 0)
+  #xent_f0 = xent_f0 * (data["targets_segmentation"] != 0)
   xent_mel = xent_mel * (data["targets_segmentation"] != 0)
   total_loss = jnp.sum(xent)
-  total_loss_f0 = jnp.sum(xent_f0)
+  #total_loss_f0 = jnp.sum(xent_f0)
   total_loss_mel = jnp.sum(xent_mel)
   total_weights = jnp.sum(data["targets_segmentation"] != 0)
   loss = total_loss / (total_weights + EPS)
-  loss_f0 = total_loss_f0 / (total_weights + EPS)
+  #loss_f0 = total_loss_f0 / (total_weights + EPS)
   loss_mel = total_loss_mel / (total_weights * config.mel_bins + EPS)
-  loss += loss_f0
+  #loss += loss_f0
   loss += loss_mel
   # get moe load balance loss
   moe_lb_loss = 0.0

@@ -175,7 +175,7 @@ class Decoder(nn.Module):
 
   config: Config
   shared_embedding: nn.Module
-  f0_embedding: nn.Module
+  #f0_embedding: nn.Module
   mesh: Mesh
   quant: Optional[Quant] = None
 
@@ -273,7 +273,7 @@ class Decoder(nn.Module):
       decoder_input_tokens,
       decoder_positions,
       decoder_mel,
-      decoder_f0,
+      #decoder_f0,
       decoder_segment_ids=None,
       deterministic=False,
       model_mode=common_types.MODEL_MODE_TRAIN,
@@ -285,7 +285,7 @@ class Decoder(nn.Module):
     # [batch, length] -> [batch, length, emb_dim]
     y = self.shared_embedding(decoder_input_tokens.astype("int32"))
     mask = (decoder_input_tokens == cfg.semantic_code)
-    y += self.f0_embedding(decoder_f0.astype("int32")) * mask[...,jnp.newaxis]
+    #y += self.f0_embedding(decoder_f0.astype("int32")) * mask[...,jnp.newaxis]
     y +=  linears.DenseGeneral(
           cfg.emb_dim,
           dtype=cfg.dtype,
@@ -438,7 +438,7 @@ class Decoder(nn.Module):
         y
     )  # We do not quantize the logits matmul.
 
-    mel_sample ,_ ,_ = fbs_layer.LatentSamplingModule(config=cfg, mesh=mesh, name=f"latenet_sample", quant=self.quant)(y, deterministic=deterministic)
+    mel_sample , mel_mu, mel_sigma = fbs_layer.LatentSamplingModule(config=cfg, mesh=mesh, name=f"latenet_sample", quant=self.quant)(y, deterministic=deterministic)
 
     logits = nn.with_logical_constraint(
         logits, ("activation_embed_and_logits_batch", "activation_length", "activation_vocab")
@@ -470,16 +470,16 @@ class Decoder(nn.Module):
 
     # stop_prob = nn.sigmoid(stop_prob)
 
-    f0_predict = linears.DenseGeneral(
-        cfg.mel_bins,
-        weight_dtype=cfg.weight_dtype,
-        dtype=jnp.float32 if cfg.logits_dot_in_fp32 else cfg.dtype,  # for logit training stability
-        kernel_axes=("embed", "vocab"),
-        name="f0_output_dense",
-        matmul_precision=self.config.matmul_precision,
-    )(y)
+    # f0_predict = linears.DenseGeneral(
+    #     cfg.mel_bins,
+    #     weight_dtype=cfg.weight_dtype,
+    #     dtype=jnp.float32 if cfg.logits_dot_in_fp32 else cfg.dtype,  # for logit training stability
+    #     kernel_axes=("embed", "vocab"),
+    #     name="f0_output_dense",
+    #     matmul_precision=self.config.matmul_precision,
+    # )(y)
 
-    return logits,mel,f0_predict
+    return logits,mel, mel_mu, mel_sigma
 
 
 class Transformer(nn.Module):
@@ -505,23 +505,23 @@ class Transformer(nn.Module):
         name="token_embedder",
         config=cfg,
     )
-    self.f0_embedding = Embed(
-        num_embeddings=cfg.mel_bins,
-        features=cfg.emb_dim,
-        dtype=cfg.dtype,
-        attend_dtype=jnp.float32 if cfg.logits_dot_in_fp32 else cfg.dtype,  # for logit training stability
-        embedding_init=nn.initializers.normal(stddev=1.0),
-        name="f0_embedder",
-        config=cfg,
-    )
-    self.decoder = Decoder(config=cfg, shared_embedding=self.shared_embedding,f0_embedding=self.f0_embedding, mesh=mesh, quant=self.quant)
+    # self.f0_embedding = Embed(
+    #     num_embeddings=cfg.mel_bins,
+    #     features=cfg.emb_dim,
+    #     dtype=cfg.dtype,
+    #     attend_dtype=jnp.float32 if cfg.logits_dot_in_fp32 else cfg.dtype,  # for logit training stability
+    #     embedding_init=nn.initializers.normal(stddev=1.0),
+    #     name="f0_embedder",
+    #     config=cfg,
+    # )
+    self.decoder = Decoder(config=cfg, shared_embedding=self.shared_embedding, mesh=mesh, quant=self.quant)
 
   def __call__(
       self,
       decoder_input_tokens,
       decoder_positions,
       decoder_mel,
-      decoder_f0,
+      #decoder_f0,
       decoder_segment_ids=None,
       enable_dropout=True,
       model_mode=common_types.MODEL_MODE_TRAIN,
@@ -534,13 +534,13 @@ class Transformer(nn.Module):
           f" which is always {common_types.DECODING_ACTIVE_SEQUENCE_INDICATOR}."
       )
 
-    logits,mel,f0_predict = self.decoder(
+    logits,mel,mel_mu,mel_sigma = self.decoder(
         decoder_input_tokens=decoder_input_tokens,
         decoder_positions=decoder_positions,
         decoder_mel=decoder_mel,
-        decoder_f0=decoder_f0,
+        #decoder_f0=decoder_f0,
         decoder_segment_ids=decoder_segment_ids,
         deterministic=not enable_dropout,
         model_mode=model_mode,
     )
-    return logits,mel,f0_predict
+    return logits,mel,mel_mu,mel_sigma
