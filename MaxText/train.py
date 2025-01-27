@@ -436,8 +436,9 @@ def loss_fn(model, config, data, dropout_rng, params, is_train=True):
   xent_mel_l1 = 0.5 * jnp.abs(mel - data["targets_mel"])
   xent_mel_l2 = optax.l2_loss(mel - data["targets_mel"])
   xent_l_kl = 0.5 * jnp.sum(mel_sigma **2 + (mel_mu - data["targets_mel"])**2 - 1 - 2 * jnp.log(mel_sigma), axis=-1)
-  xent_mel = xent_mel_l1 + xent_mel_l2 + xent_l_kl
+  xent_mel = xent_mel_l1 + xent_mel_l2
   xent_mel = jnp.where(mel_mask[...,jnp.newaxis],xent_mel,0.)
+  xent_kl = jnp.where(mel_mask,xent_l_kl,0.)
   xent_mel = jnp.sum(xent_mel,axis=-1)
   
   #one_hot_targets_f0 = jax.nn.one_hot(data["targets_f0"], config.mel_bins)
@@ -449,14 +450,16 @@ def loss_fn(model, config, data, dropout_rng, params, is_train=True):
   xent = xent * (data["targets_segmentation"] != 0)
   #xent_f0 = xent_f0 * (data["targets_segmentation"] != 0)
   xent_mel = xent_mel * (data["targets_segmentation"] != 0)
+  xent_kl = xent_kl * (data["targets_segmentation"] != 0)
   total_loss = jnp.sum(xent)
-  #total_loss_f0 = jnp.sum(xent_f0)
+  total_loss_kl = jnp.sum(xent_kl)
   total_loss_mel = jnp.sum(xent_mel)
   total_weights = jnp.sum(data["targets_segmentation"] != 0)
   loss = total_loss / (total_weights + EPS)
+  loss_kl = total_loss_kl / (total_weights + EPS)
   #loss_f0 = total_loss_f0 / (total_weights + EPS)
   loss_mel = total_loss_mel / (total_weights * config.mel_bins + EPS)
-  #loss += loss_f0
+  loss += loss_kl
   loss += loss_mel
   # get moe load balance loss
   moe_lb_loss = 0.0
