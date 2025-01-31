@@ -132,7 +132,7 @@ def main(config):
 
   results = [sampled_tokens.get_result_at_slot(slot).tokens.item() for sampled_tokens in sampled_tokens_list]
   results_mel = [sampled_tokens.mel_data[0] for sampled_tokens in sampled_tokens_list]
-  results_f0 = [sampled_tokens.f0_data[0] for sampled_tokens in sampled_tokens_list]
+  #results_f0 = [sampled_tokens.f0_data[0] for sampled_tokens in sampled_tokens_list]
   mel_res = jnp.concatenate(results_mel)
   # 转换为分贝单位
   import matplotlib.pyplot as plt

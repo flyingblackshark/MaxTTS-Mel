@@ -25,7 +25,7 @@
       "program": "${workspaceFolder}/MaxText/decode.py",
       "args": ["MaxText/configs/base.yml", 
                "run_name=runner_$(date +%Y-%m-%d-%H-%M)", 
-               "load_parameters_path=gs://fbs-us2/maxtext_output/meltest13/checkpoints/140000/items",
+               "load_parameters_path=gs://fbs-us2/maxtext_output/meltest2002/checkpoints/520000/items",
                "max_prefill_predict_length=64",
                "max_target_length=4096",
                "ici_fsdp_parallelism=1",

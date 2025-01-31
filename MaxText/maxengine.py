@@ -257,14 +257,14 @@ class MaxEngine(engine_api.Engine):
 
     rng, new_rng = jax.random.split(rng)
     prefill_mel = jnp.zeros((input_tokens.shape[0],input_tokens.shape[1],128))
-    prefill_f0 = jnp.zeros((input_tokens.shape[0],input_tokens.shape[1]))
+    #prefill_f0 = jnp.zeros((input_tokens.shape[0],input_tokens.shape[1]))
     with self._mesh, nn_partitioning.axis_rules(self.config.logical_axis_rules):
-      (flat_logits,mel,f0_predict), new_vars = self.model.apply(
+      (flat_logits,mel,_,_), new_vars = self.model.apply(
           params,
           input_tokens,
           positions,
           prefill_mel,
-          prefill_f0,
+          #prefill_f0,
           decoder_segment_ids=sequence_indicator,
           enable_dropout=False,
           model_mode=common_types.MODEL_MODE_PREFILL,
@@ -284,14 +284,14 @@ class MaxEngine(engine_api.Engine):
         (0, true_length - 1, 0),
         (mel.shape[0], 1, mel.shape[2]),
     )
-    selected_f0 = jax.lax.dynamic_slice(
-        f0_predict,
-        (0, true_length - 1, 0),
-        (f0_predict.shape[0], 1, f0_predict.shape[2]),
-    )
+    # selected_f0 = jax.lax.dynamic_slice(
+    #     f0_predict,
+    #     (0, true_length - 1, 0),
+    #     (f0_predict.shape[0], 1, f0_predict.shape[2]),
+    # )
     selected_logits = jax.lax.with_sharding_constraint(selected_logits, self.replicated_sharding)
     selected_mel = jax.lax.with_sharding_constraint(selected_mel, self.replicated_sharding)
-    selected_f0 = jax.lax.with_sharding_constraint(selected_f0, self.replicated_sharding)
+    #selected_f0 = jax.lax.with_sharding_constraint(selected_f0, self.replicated_sharding)
 
     # sampling first token
     first_generated_token = inference_utils.sampling(
@@ -302,20 +302,20 @@ class MaxEngine(engine_api.Engine):
         nucleus_topp=self.config.decode_sampling_nucleus_p,
         temperature=self.config.decode_sampling_temperature,
     )
-    first_generated_f0 = inference_utils.sampling(
-        selected_f0,
-        rng,
-        self.config.decode_sampling_strategy,
-        topk=self.config.decode_sampling_top_k,
-        nucleus_topp=self.config.decode_sampling_nucleus_p,
-        temperature=self.config.decode_sampling_temperature,
-    )
+    # first_generated_f0 = inference_utils.sampling(
+    #     selected_f0,
+    #     rng,
+    #     self.config.decode_sampling_strategy,
+    #     topk=self.config.decode_sampling_top_k,
+    #     nucleus_topp=self.config.decode_sampling_nucleus_p,
+    #     temperature=self.config.decode_sampling_temperature,
+    # )
 
     all_valid = jnp.ones(first_generated_token.shape, dtype=jnp.int8)
     result = engine_api.ResultTokens(
         data=jnp.concatenate((first_generated_token, all_valid, generated_tokens), axis=1),
         mel_data=selected_mel,
-        f0_data=first_generated_f0,
+        #f0_data=first_generated_f0,
         # Tokens are shape [batch, speculations], so when we concatenate
         # tokens, validity and length along their index 1 dimension then they
         # occupy 0:speculations.
@@ -337,7 +337,7 @@ class MaxEngine(engine_api.Engine):
         "generated_tokens": generated_tokens,
         "tokens": first_generated_token,
         "mel":selected_mel,
-        "f0":first_generated_f0,
+        #"f0":first_generated_f0,
     }, result
 
   @functools.partial(jax.jit, static_argnums=(0,), donate_argnums=(2,))
@@ -354,17 +354,17 @@ class MaxEngine(engine_api.Engine):
 
     previous_token = decode_state["tokens"]
     previous_mel = decode_state["mel"]
-    previous_f0 = decode_state["f0"]
+    #previous_f0 = decode_state["f0"]
 
     rng, new_rng = jax.random.split(rng)
     # run one step generation
     with self._mesh, nn_partitioning.axis_rules(self.config.logical_axis_rules):
-      (out_logits,out_mel,out_f0_predict), new_vars = self.model.apply(
+      (out_logits,out_mel,_,_), new_vars = self.model.apply(
           params | {"cache": decode_state["cache"]},
           previous_token,
           decode_state["next_pos"],
           previous_mel,
-          previous_f0,
+          #previous_f0,
           enable_dropout=False,
           model_mode=common_types.MODEL_MODE_AUTOREGRESSIVE,
           rngs={"params": new_rng},
@@ -373,7 +373,7 @@ class MaxEngine(engine_api.Engine):
 
     out_logits = jax.lax.with_sharding_constraint(out_logits, self.replicated_sharding)
     out_mel = jax.lax.with_sharding_constraint(out_mel, self.replicated_sharding)
-    out_f0_predict = jax.lax.with_sharding_constraint(out_f0_predict, self.replicated_sharding)
+    #out_f0_predict = jax.lax.with_sharding_constraint(out_f0_predict, self.replicated_sharding)
     new_cache = jax.lax.with_sharding_constraint(new_vars["cache"], self.kv_cache_shardings)
 
     # sampling tokens
@@ -385,20 +385,20 @@ class MaxEngine(engine_api.Engine):
         nucleus_topp=self.config.decode_sampling_nucleus_p,
         temperature=self.config.decode_sampling_temperature,
     )
-    new_f0 = inference_utils.sampling(
-        out_f0_predict,
-        rng,
-        self.config.decode_sampling_strategy,
-        topk=self.config.decode_sampling_top_k,
-        nucleus_topp=self.config.decode_sampling_nucleus_p,
-        temperature=self.config.decode_sampling_temperature,
-    )
+    # new_f0 = inference_utils.sampling(
+    #     out_f0_predict,
+    #     rng,
+    #     self.config.decode_sampling_strategy,
+    #     topk=self.config.decode_sampling_top_k,
+    #     nucleus_topp=self.config.decode_sampling_nucleus_p,
+    #     temperature=self.config.decode_sampling_temperature,
+    # )
 
     all_valid = jnp.ones(new_token.shape, dtype=jnp.int8)
     result = engine_api.ResultTokens(
         data=jnp.concatenate((new_token, all_valid, decode_state["generated_tokens"]), axis=1),
         mel_data=out_mel,#jnp.concatenate((out_mel, decode_state["mel"]),axis=1),
-        f0_data=new_f0,#jnp.concatenate((new_f0, decode_state["f0"]),axis=1),
+        #f0_data=new_f0,#jnp.concatenate((new_f0, decode_state["f0"]),axis=1),
         # Tokens are shape [batch, speculations], so when we concatenate
         # tokens, validity and length along their index 1 dimension then they
         # occupy 0:speculations.
@@ -417,7 +417,7 @@ class MaxEngine(engine_api.Engine):
         "generated_tokens": decode_state["generated_tokens"] + 1,
         "tokens": new_token,
         "mel":out_mel,
-        "f0":new_f0,
+        #"f0":new_f0,
     }, result
 
   @functools.partial(
@@ -496,7 +496,7 @@ class MaxEngine(engine_api.Engine):
     inserted_logits = jax.lax.dynamic_update_index_in_dim(decode_state["logits"], unboxed_prefix["logits"], slot, 0)
     inserted_next_pos = jax.lax.dynamic_update_index_in_dim(decode_state["next_pos"], unboxed_prefix["next_pos"], slot, 0)
     inserted_mel = jax.lax.dynamic_update_index_in_dim(decode_state["mel"], unboxed_prefix["mel"], slot, 0)
-    inserted_f0 = jax.lax.dynamic_update_index_in_dim(decode_state["f0"], unboxed_prefix["f0"], slot, 0)
+    #inserted_f0 = jax.lax.dynamic_update_index_in_dim(decode_state["f0"], unboxed_prefix["f0"], slot, 0)
     inserted_generated_tokens = jax.lax.dynamic_update_index_in_dim(
         decode_state["generated_tokens"],
         unboxed_prefix["generated_tokens"],
@@ -511,7 +511,7 @@ class MaxEngine(engine_api.Engine):
     inserted_tokens = jax.lax.with_sharding_constraint(inserted_tokens, self.replicated_sharding)
     inserted_cache = jax.lax.with_sharding_constraint(inserted_cache, self.kv_cache_shardings)
     inserted_mel = jax.lax.with_sharding_constraint(inserted_mel, self.replicated_sharding)
-    inserted_f0 = jax.lax.with_sharding_constraint(inserted_f0, self.replicated_sharding)
+    #inserted_f0 = jax.lax.with_sharding_constraint(inserted_f0, self.replicated_sharding)
 
     return {
         "logits": inserted_logits,
@@ -520,7 +520,7 @@ class MaxEngine(engine_api.Engine):
         "generated_tokens": inserted_generated_tokens,
         "tokens": inserted_tokens,
         "mel":inserted_mel,
-        "f0":inserted_f0,
+        #"f0":inserted_f0,
     }
 
   def get_prefix_destination_sharding(self) -> Any:
@@ -569,7 +569,7 @@ class MaxEngine(engine_api.Engine):
           x,
           x,
           mel_x,
-          x,
+          #  x,
           enable_dropout=False,
           model_mode=common_types.MODEL_MODE_AUTOREGRESSIVE,
           rngs={"params": rng},
@@ -592,10 +592,10 @@ class MaxEngine(engine_api.Engine):
           (int(self.config.per_device_batch_size * jax.device_count()), 1 , 128),
           dtype=jnp.float32,
       )
-      f0 = jnp.zeros(
-          (int(self.config.per_device_batch_size * jax.device_count()), 1),
-          dtype=jnp.int32,
-      )
+      # f0 = jnp.zeros(
+      #     (int(self.config.per_device_batch_size * jax.device_count()), 1),
+      #     dtype=jnp.int32,
+      # )
       return {
           "logits": jnp.zeros(
               (
@@ -609,7 +609,7 @@ class MaxEngine(engine_api.Engine):
           "generated_tokens": generated_tokens,
           "tokens": tokens,
           "mel":mel,
-          "f0":f0,
+          #"f0":f0,
       }
 
     with nn_partitioning.axis_rules(self.config.logical_axis_rules):

@@ -958,7 +958,7 @@ def get_kv_cache_annotations(model, config, rng, mesh):
         jnp.ones(input_shape),
         jnp.ones(input_shape),
         jnp.ones(mel_input_shape),
-        jnp.ones(input_shape),
+        #jnp.ones(input_shape),
         model_mode=common_types.MODEL_MODE_AUTOREGRESSIVE,
     )
     return model_vars["cache"]
