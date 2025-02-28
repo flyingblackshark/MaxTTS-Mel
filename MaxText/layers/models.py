@@ -462,6 +462,7 @@ class Decoder(nn.Module):
     )
     if self.config.cast_logits_to_fp32:
       mel = mel.astype(jnp.float32)
+      stop_prob = stop_prob.astype(jnp.float32)
     # stop_prob = linears.DenseGeneral(
     #     1,
     #     weight_dtype=cfg.weight_dtype,
