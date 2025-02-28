@@ -99,7 +99,7 @@ def get_mel(y, keyshift=0, speed=1, center=False):
     pad_left = (win_size_new - hop_length_new) //2
     pad_right = max((win_size_new - hop_length_new + 1) //2, win_size_new - y.shape[-1] - pad_left)
     y = np.pad(y, ((0,0),(pad_left, pad_right)))
-    _,_,spec = scipy.signal.stft(y,nfft=n_fft_new,noverlap=win_size_new-hop_length_new,nperseg=win_size_new,boundary=None)
+    _,_,spec = scipy.signal.stft(y,nfft=n_fft_new,noverlap=win_size_new-hop_length_new,nperseg=win_size_new)
     spectrum_win = np.sin(np.linspace(0, np.pi, win_size_new, endpoint=False)) ** 2
     spec *= spectrum_win.sum()
     spec = np.sqrt(spec.real**2 + spec.imag**2 + (1e-9))
@@ -152,7 +152,7 @@ class HFNormalizeFeatures(grain.MapTransform):
     text_tokens = self.tokenizezr.encode(text=features["text_normalized"])
     encoded = self.encoded_prefix + np.asarray(text_tokens).tolist() + self.encoded_suffix
     audio_44k = librosa.resample(features["audio"]["array"], orig_sr=features["audio"]["sampling_rate"], target_sr=44100)
-    mel = get_mel(audio_44k[...,np.newaxis])[0]
+    mel = get_mel(audio_44k[...,np.newaxis])[0].transpose(1,0)
     mel_length = mel.shape[0]
     tokens = (
                 encoded
@@ -161,7 +161,7 @@ class HFNormalizeFeatures(grain.MapTransform):
             )
     tokens = np.asarray(tokens)
     prompt_length = len(encoded)
-    mel = np.pad(mel,((0,0),(prompt_length,1)))
+    mel = np.pad(mel,((prompt_length,1),(0,0)))
     inputs_mel = mel[:-1]
     targets_mel = mel[1:]
     return {

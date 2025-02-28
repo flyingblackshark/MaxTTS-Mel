@@ -113,7 +113,7 @@ def preprocessing_pipeline(
   # dummy_index_sampler is used as an input place holder for grain.Dataloader
   dummy_index_sampler = grain.IndexSampler(
       num_records=len(dataset),
-      num_epochs=1,
+      num_epochs=None,
       shard_options=grain.ShardOptions(
           shard_index=dataloading_host_index, shard_count=dataloading_host_count, drop_remainder=False
       ),
