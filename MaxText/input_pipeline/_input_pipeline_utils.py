@@ -79,7 +79,7 @@ def tokenization(example, hf_tokenizer, max_length, column_names):
 
 def get_mel(y, keyshift=0, speed=1, center=False):
     def dynamic_range_compression_jax(x, C=1, clip_val=1e-5):
-      return np.log(np.clip(x,min=clip_val) * C)
+      return np.log(np.clip(x,a_min=clip_val,a_max=None) * C)
     sampling_rate = 44100
     n_mels     = 128 #self.n_mels
     n_fft      = 2048 #self.n_fft
@@ -110,7 +110,7 @@ def get_mel(y, keyshift=0, speed=1, center=False):
         if resize < size:
             spec = np.pad(spec, ((0, 0),(0, size-resize)))
         spec = spec[:, :size, :] * win_size / win_size_new   
-    spec = spec.transpose(0,2,1)
+    #spec = spec.transpose(0,2,1)
     spec = np.matmul(mel_basis, spec)
     spec = dynamic_range_compression_jax(spec, clip_val=clip_val)
     return spec
@@ -149,7 +149,7 @@ class HFNormalizeFeatures(grain.MapTransform):
     self.end_token_id  = enc.encode_single_token("<|im_end|>")
 
   def map(self, features):
-    text_tokens = self.tokenizezr.encode(text=features["text"])
+    text_tokens = self.tokenizezr.encode(text=features["text_normalized"])
     encoded = self.encoded_prefix + np.asarray(text_tokens).tolist() + self.encoded_suffix
     audio_44k = librosa.resample(features["audio"]["array"], orig_sr=features["audio"]["sampling_rate"], target_sr=44100)
     mel = get_mel(audio_44k[...,np.newaxis])[0]

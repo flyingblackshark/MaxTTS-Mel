@@ -146,6 +146,7 @@ def make_hf_train_iterator(
       config.hf_path,
       # data_dir=config.hf_data_dir,
       # data_files=config.hf_train_files,
+      name="clean",
       split="train",
       streaming=True,
       token=config.hf_access_token,
