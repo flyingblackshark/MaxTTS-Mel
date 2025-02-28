@@ -419,7 +419,7 @@ def loss_fn(model, config, data, dropout_rng, params, is_train=True):
     for k, v in data.items():
       data[k] = v[: config.micro_batch_size_to_eval_on, :]
 
-  (logits,mel, mel_mu, mel_sigma), intermediate_outputs = model.apply(
+  (stop_prob ,mel, mel_mu, mel_sigma), intermediate_outputs = model.apply(
       params,
       data["inputs"],
       data["inputs_position"],
@@ -431,8 +431,9 @@ def loss_fn(model, config, data, dropout_rng, params, is_train=True):
       mutable="intermediates",
   )
   mel_mask = (data["inputs"] == config.semantic_code)
-  one_hot_targets = jax.nn.one_hot(data["targets"], config.vocab_size)
-  xent, _ = max_utils.cross_entropy_with_logits(logits, one_hot_targets, 0.0)
+  #one_hot_targets = jax.nn.one_hot(data["targets"], config.vocab_size)
+  stop_mask = (data["targets"] == config.stop_code)
+  xent, _ = max_utils.cross_entropy_with_logits(stop_prob, one_hot_targets, 0.0)
   xent_mel_l1 = 0.5 * jnp.abs(mel - data["targets_mel"])
   xent_mel_l2 = optax.l2_loss(mel - data["targets_mel"])
   xent_l_kl = 0.5 * jnp.sum(mel_sigma **2 + (mel_mu - data["targets_mel"])**2 - 1 - 2 * jnp.log(mel_sigma), axis=-1)
