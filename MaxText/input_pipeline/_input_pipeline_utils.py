@@ -28,6 +28,10 @@ import tensorflow as tf
 import max_logging
 import tokenizer
 import tiktoken
+import librosa
+import scipy
+from librosa.filters import mel as librosa_mel_fn
+
 Features = Dict[str, tf.Tensor]
 AUTOTUNE = tf.data.experimental.AUTOTUNE
 
@@ -73,6 +77,44 @@ def tokenization(example, hf_tokenizer, max_length, column_names):
       for column_name in column_names
   }
 
+def get_mel(y, keyshift=0, speed=1, center=False):
+    def dynamic_range_compression_jax(x, C=1, clip_val=1e-5):
+      return np.log(np.clip(x,min=clip_val) * C)
+    sampling_rate = 44100
+    n_mels     = 128 #self.n_mels
+    n_fft      = 2048 #self.n_fft
+    win_size   = 2048 #self.win_size
+    hop_length = 512 #self.hop_length
+    fmin       = 40 #self.fmin
+    fmax       = 16000 #self.fmax
+    clip_val   = 1e-5 #self.clip_val
+    
+    factor = 2 ** (keyshift / 12)       
+    n_fft_new = int(np.round(n_fft * factor))
+    win_size_new = int(np.round(win_size * factor))
+    hop_length_new = int(np.round(hop_length * speed))
+    
+    mel_basis = librosa_mel_fn(sr=sampling_rate, n_fft=n_fft, n_mels=n_mels, fmin=fmin, fmax=fmax)
+    
+    pad_left = (win_size_new - hop_length_new) //2
+    pad_right = max((win_size_new - hop_length_new + 1) //2, win_size_new - y.shape[-1] - pad_left)
+    y = np.pad(y, ((0,0),(pad_left, pad_right)))
+    _,_,spec = scipy.signal.stft(y,nfft=n_fft_new,noverlap=win_size_new-hop_length_new,nperseg=win_size_new,boundary=None)
+    spectrum_win = np.sin(np.linspace(0, np.pi, win_size_new, endpoint=False)) ** 2
+    spec *= spectrum_win.sum()
+    spec = np.sqrt(spec.real**2 + spec.imag**2 + (1e-9))
+
+    if keyshift != 0:
+        size = n_fft // 2 + 1
+        resize = spec.size(1)
+        if resize < size:
+            spec = np.pad(spec, ((0, 0),(0, size-resize)))
+        spec = spec[:, :size, :] * win_size / win_size_new   
+    spec = spec.transpose(0,2,1)
+    spec = np.matmul(mel_basis, spec)
+    spec = dynamic_range_compression_jax(spec, clip_val=clip_val)
+    return spec
+
 @dataclasses.dataclass
 class HFNormalizeFeatures(grain.MapTransform):
   """Normalize feature keys for HuggingFace input"""
@@ -108,7 +150,7 @@ class HFNormalizeFeatures(grain.MapTransform):
 
   def map(self, features):
     text_tokens = self.tokenizezr.encode(text=features["text"])
-
+    audio_44k = librosa.resample(features["audio"]["array"], features["audio"]["sampling_rate"], 44100)
     return {
         "inputs": np.asarray(text_tokens, dtype=np.int32),
         "targets": np.asarray(text_tokens, dtype=np.int32),

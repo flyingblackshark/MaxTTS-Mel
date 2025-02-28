@@ -142,7 +142,9 @@ def get_mel(y, keyshift=0, speed=1, center=False):
     pad_left = (win_size_new - hop_length_new) //2
     pad_right = max((win_size_new - hop_length_new + 1) //2, win_size_new - y.shape[-1] - pad_left)
     y = jnp.pad(y, ((0,0),(pad_left, pad_right)))
-    spec = audax.core.stft.stft(y,n_fft_new,hop_length_new,win_size_new,hann_window,onesided=True,center=False)
+    _,_,spec = jax.scipy.signal.stft(y,nfft=n_fft_new,noverlap=win_size_new-hop_length_new,nperseg=win_size_new,boundary=None)
+    spectrum_win = jnp.sin(jnp.linspace(0, jnp.pi, win_size_new, endpoint=False)) ** 2
+    spec *= spectrum_win.sum()
     spec = jnp.sqrt(spec.real**2 + spec.imag**2 + (1e-9))
 
     if keyshift != 0:
@@ -249,7 +251,7 @@ if __name__ == "__main__":
     dataset = _input_pipeline_utils.HFDataSource(dataset,
                                                 jax.process_index(),
                                                 jax.process_count(),
-                                                HF_NUM_THREADS,
+                                                1,
                                                 False,
                                                 15000,
                                                 "text",
@@ -274,7 +276,7 @@ if __name__ == "__main__":
         sampler=dummy_index_sampler,
         worker_count=1,  # only supports one worker for now, more workers results in duplicated data
         worker_buffer_size=1,
-        read_options=grain.ReadOptions(num_threads=HF_NUM_THREADS, prefetch_buffer_size=128),
+        read_options=grain.ReadOptions(num_threads=1, prefetch_buffer_size=128),
     )
     
 

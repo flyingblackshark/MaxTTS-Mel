@@ -148,7 +148,7 @@ def make_hf_train_iterator(
       # data_files=config.hf_train_files,
       split="train",
       streaming=True,
-      #token=config.hf_access_token,
+      token=config.hf_access_token,
   )
   train_iter = preprocessing_pipeline(
       dataloading_host_index=process_indices_train.index(jax.process_index()),
