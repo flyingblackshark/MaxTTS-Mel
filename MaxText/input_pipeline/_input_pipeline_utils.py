@@ -110,8 +110,8 @@ class HFNormalizeFeatures(grain.MapTransform):
     text_tokens = self.tokenizezr.encode(text=features["text"])
 
     return {
-        "inputs": np.asarray(features[self.column_name], dtype=np.int32),
-        "targets": np.asarray(features[self.column_name], dtype=np.int32),
+        "inputs": np.asarray(text_tokens, dtype=np.int32),
+        "targets": np.asarray(text_tokens, dtype=np.int32),
     }
 
 
