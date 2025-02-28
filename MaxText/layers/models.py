@@ -452,7 +452,7 @@ class Decoder(nn.Module):
         cfg.mel_bins,
         weight_dtype=cfg.weight_dtype,
         dtype=jnp.float32 if cfg.logits_dot_in_fp32 else cfg.dtype,  # for logit training stability
-        kernel_axes=("embed"),
+        kernel_axes=("embed", "vocab"),
         name="mel_output_dense",
         matmul_precision=self.config.matmul_precision,
     )(mel_sample)
