@@ -433,7 +433,7 @@ def loss_fn(model, config, data, dropout_rng, params, is_train=True):
   mel_mask = (data["inputs"] == config.semantic_code)
   #one_hot_targets = jax.nn.one_hot(data["targets"], config.vocab_size)
   stop_mask = (data["targets"] == config.stop_code)
-  xent, _ = max_utils.cross_entropy_with_logits(stop_prob, stop_mask, 0.0)
+  xent = optax.sigmoid_binary_cross_entropy(stop_prob, stop_mask)
   xent_mel_l1 = 0.5 * jnp.abs(mel - data["targets_mel"])
   xent_mel_l2 = optax.l2_loss(mel - data["targets_mel"])
   xent_l_kl = 0.5 * jnp.sum(mel_sigma **2 + (mel_mu - data["targets_mel"])**2 - 1 - 2 * jnp.log(mel_sigma), axis=-1)

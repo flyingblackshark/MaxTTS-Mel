@@ -438,7 +438,7 @@ class Decoder(nn.Module):
         y
     )  # We do not quantize the logits matmul.
 
-    stop_prob = nn.sigmoid(stop_prob)
+    #stop_prob = nn.sigmoid(stop_prob)
     mel_sample , mel_mu, mel_sigma = fbs_layer.LatentSamplingModule(config=cfg, mesh=mesh, name=f"latenet_sample", quant=self.quant)(y, deterministic=deterministic)
 
     # logits = nn.with_logical_constraint(
@@ -452,7 +452,7 @@ class Decoder(nn.Module):
         cfg.mel_bins,
         weight_dtype=cfg.weight_dtype,
         dtype=jnp.float32 if cfg.logits_dot_in_fp32 else cfg.dtype,  # for logit training stability
-        kernel_axes=("embed", "vocab"),
+        kernel_axes=("embed"),
         name="mel_output_dense",
         matmul_precision=self.config.matmul_precision,
     )(mel_sample)
