@@ -10,9 +10,10 @@
       "python": "python3",
       "program": "MaxText/train.py",
       "args": ["MaxText/configs/base.yml",
-      "run_name=meltest1991" ,
+      "run_name=meltest1992" ,
      "base_output_directory=gs://fbs-us2/maxtext_output",
      "dataset_type=hf",
+
     "attention=dot_product"]
     },
     {

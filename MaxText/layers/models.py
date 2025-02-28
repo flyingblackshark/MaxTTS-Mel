@@ -431,7 +431,7 @@ class Decoder(nn.Module):
         1,
         weight_dtype=cfg.weight_dtype,
         dtype=jnp.float32 if cfg.logits_dot_in_fp32 else cfg.dtype,  # for logit training stability
-        kernel_axes=("embed"),
+        kernel_axes=("embed","vocab"),
         name="stop_prob_dense",
         matmul_precision=self.config.matmul_precision,
     )(
@@ -441,9 +441,9 @@ class Decoder(nn.Module):
     #stop_prob = nn.sigmoid(stop_prob)
     mel_sample , mel_mu, mel_sigma = fbs_layer.LatentSamplingModule(config=cfg, mesh=mesh, name=f"latenet_sample", quant=self.quant)(y, deterministic=deterministic)
 
-    # logits = nn.with_logical_constraint(
-    #     logits, ("activation_embed_and_logits_batch", "activation_length", "activation_vocab")
-    # )
+    stop_prob = nn.with_logical_constraint(
+        stop_prob, ("activation_embed_and_logits_batch", "activation_length", "activation_vocab")
+    )
 
     # if self.config.cast_logits_to_fp32:
     #   logits = logits.astype(jnp.float32)

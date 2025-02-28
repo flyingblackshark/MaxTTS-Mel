@@ -430,6 +430,7 @@ def loss_fn(model, config, data, dropout_rng, params, is_train=True):
       rngs={"dropout": rng1, "params": aqt_rng, "sample":sample_key},
       mutable="intermediates",
   )
+  stop_prob = stop_prob[...,0]
   mel_mask = (data["inputs"] == config.semantic_code)
   #one_hot_targets = jax.nn.one_hot(data["targets"], config.vocab_size)
   stop_mask = (data["targets"] == config.stop_code)
