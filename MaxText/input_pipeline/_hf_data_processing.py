@@ -57,22 +57,22 @@ def preprocessing_pipeline(
   if shuffle:
     dataset = dataset.shuffle(seed=data_shuffle_seed)
 
-  if tokenize:
-    tokenizer = transformers.AutoTokenizer.from_pretrained(
-        tokenizer_path,
-        add_bos_token=add_bos,
-        add_eos_token=add_eos,
-        model_max_length=max_target_length,
-        legacy=False,
-        token=hf_access_token,
-    )
+  # if tokenize:
+  #   tokenizer = transformers.AutoTokenizer.from_pretrained(
+  #       tokenizer_path,
+  #       add_bos_token=add_bos,
+  #       add_eos_token=add_eos,
+  #       model_max_length=max_target_length,
+  #       legacy=False,
+  #       token=hf_access_token,
+  #   )
 
-    dataset = dataset.map(
-        _input_pipeline_utils.tokenization,
-        batched=True,
-        fn_kwargs={"hf_tokenizer": tokenizer, "max_length": max_target_length - 1, "column_names": data_column_names},
-    )
-  dataset = dataset.select_columns(data_column_names)
+  #   dataset = dataset.map(
+  #       _input_pipeline_utils.tokenization,
+  #       batched=True,
+  #       fn_kwargs={"hf_tokenizer": tokenizer, "max_length": max_target_length - 1, "column_names": data_column_names},
+  #   )
+  # dataset = dataset.select_columns(data_column_names)
 
   dataset = _input_pipeline_utils.HFDataSource(
       dataset,
@@ -86,7 +86,7 @@ def preprocessing_pipeline(
   operations = []
   if not use_dpo:
     assert len(data_column_names) == 1
-    operations.append(_input_pipeline_utils.HFNormalizeFeatures(data_column_names[0]))
+    operations.append(_input_pipeline_utils.HFNormalizeFeatures())
     data_column_names = ("inputs", "targets")
   else:
     lists2array = lambda x: jax.tree.map(np.asarray, x, is_leaf=lambda x: isinstance(x, (list, tuple)))

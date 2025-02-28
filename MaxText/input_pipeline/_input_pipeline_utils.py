@@ -27,7 +27,7 @@ import numpy as np
 import tensorflow as tf
 import max_logging
 import tokenizer
-
+import tiktoken
 Features = Dict[str, tf.Tensor]
 AUTOTUNE = tf.data.experimental.AUTOTUNE
 
@@ -77,10 +77,38 @@ def tokenization(example, hf_tokenizer, max_length, column_names):
 class HFNormalizeFeatures(grain.MapTransform):
   """Normalize feature keys for HuggingFace input"""
 
-  def __init__(self, column_name):
-    self.column_name = column_name
+  def __init__(self):
+    cl100k_base = tiktoken.get_encoding("cl100k_base")
+
+    enc = tiktoken.Encoding(
+        name="cl100k_im",
+        pat_str=cl100k_base._pat_str,
+        mergeable_ranks=cl100k_base._mergeable_ranks,
+        special_tokens={
+            **cl100k_base._special_tokens,
+            "<|im_start|>": 100264,
+            "<|im_end|>": 100265,
+            "<|semantic|>": 100266,
+        }
+    )
+    self.tokenizezr = enc
+    string_prefix = "<|im_start|>user\n"
+    string_suffix = "<|im_end|><|im_start|>assistant\n"
+
+    self.encoded_prefix = enc.encode(
+        string_prefix,
+        allowed_special={"<|im_start|>","<|im_end|>"}
+    )
+    self.encoded_suffix = enc.encode(
+        string_suffix,
+        allowed_special={"<|im_start|>","<|im_end|>"}
+    )
+    self.semantic_token_id = enc.encode_single_token("<|semantic|>")
+    self.end_token_id  = enc.encode_single_token("<|im_end|>")
 
   def map(self, features):
+    text_tokens = self.tokenizezr.encode(text=features["text"])
+
     return {
         "inputs": np.asarray(features[self.column_name], dtype=np.int32),
         "targets": np.asarray(features[self.column_name], dtype=np.int32),

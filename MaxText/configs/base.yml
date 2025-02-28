@@ -298,7 +298,7 @@ ici_expert_parallelism: 1
 num_slices: -1
 
 # Tokenizer
-vocab_size: 128_128 # powers of 2 for sharding
+vocab_size: 128256 # powers of 2 for sharding
 tokenizer_path: "assets/tokenizer.llama2"
 tokenize_train_data: True  # False if the dataset is pre-tokenized
 tokenize_eval_data: True  # False if the dataset is pre-tokenized
@@ -327,14 +327,14 @@ dataset_name: 'c4/en:3.0.1'
 eval_dataset_name: 'c4/en:3.0.1'
 eval_split: 'validation'
 # for HuggingFace input pipeline (dataset_type=hf)
-hf_path: ''
+hf_path: 'kotoba-speech/mls-eng-full'
 hf_data_dir: ''
 hf_train_files: ''
 hf_eval_split: ''
 hf_eval_files: ''
 hf_access_token: ''
 # for Grain input pipeline (dataset_type=grain)
-grain_train_files: '/home/blacksharkflying/bucket/dataset3/*.arrayrecord*'
+grain_train_files: ''
 grain_eval_files: ''
 grain_worker_count: 1
 

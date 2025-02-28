@@ -12,7 +12,7 @@
       "args": ["MaxText/configs/base.yml",
       "run_name=meltest10" ,
      "base_output_directory=gs://fbs-us2/maxtext_output",
-     "dataset_type=grain",
+     "dataset_type=hf",
     "steps=1000"]
     },
     {
