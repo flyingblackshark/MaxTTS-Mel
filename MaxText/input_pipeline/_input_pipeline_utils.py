@@ -128,25 +128,28 @@ class HFNormalizeFeatures(grain.MapTransform):
         mergeable_ranks=cl100k_base._mergeable_ranks,
         special_tokens={
             **cl100k_base._special_tokens,
-            "<|im_start|>": 100264,
-            "<|im_end|>": 100265,
-            "<|semantic|>": 100266,
+            "<|text_start|>": 100264,
+            "<|text_end|>": 100265,
+            "<|speech_start|>": 100266,
+            "<|speech_end|>": 100267,
+            "<|semantic|>": 100268,
         }
     )
     self.tokenizezr = enc
-    string_prefix = "<|im_start|>user\n"
-    string_suffix = "<|im_end|><|im_start|>assistant\n"
+    string_prefix = "<|text_start|>user\n"
+    string_suffix = "<|text_end|><|speech_start|>assistant\n"
 
     self.encoded_prefix = enc.encode(
         string_prefix,
-        allowed_special={"<|im_start|>","<|im_end|>"}
+        allowed_special={"<|text_start|>","<|text_end|>","<|speech_start|>","<|speech_end|>"}
     )
     self.encoded_suffix = enc.encode(
         string_suffix,
-        allowed_special={"<|im_start|>","<|im_end|>"}
+        allowed_special={"<|text_start|>","<|text_end|>","<|speech_start|>","<|speech_end|>"}
     )
     self.semantic_token_id = enc.encode_single_token("<|semantic|>")
-    self.end_token_id  = enc.encode_single_token("<|im_end|>")
+    #self.text_end_token_id  = enc.encode_single_token("<|text_end|>")
+    self.speech_end_token_id  = enc.encode_single_token("<|speech_end|>")
 
   def map(self, features):
     text_tokens = self.tokenizezr.encode(text=features["text_normalized"])
@@ -157,7 +160,7 @@ class HFNormalizeFeatures(grain.MapTransform):
     tokens = (
                 encoded
                 + [self.semantic_token_id] * mel_length
-                + [self.end_token_id]
+                + [self.speech_end_token_id]
             )
     tokens = np.asarray(tokens)
     prompt_length = len(encoded)

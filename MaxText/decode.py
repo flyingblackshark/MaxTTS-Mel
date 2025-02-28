@@ -98,12 +98,14 @@ def main(config):
       name="cl100k_im",
       pat_str=cl100k_base._pat_str,
       mergeable_ranks=cl100k_base._mergeable_ranks,
-      special_tokens={
-          **cl100k_base._special_tokens,
-          "<|im_start|>": 100264,
-          "<|im_end|>": 100265,
-          "<|semantic|>": 100266,
-      }
+        special_tokens={
+            **cl100k_base._special_tokens,
+            "<|text_start|>": 100264,
+            "<|text_end|>": 100265,
+            "<|speech_start|>": 100266,
+            "<|speech_end|>": 100267,
+            "<|semantic|>": 100268,
+        }
   )
 
   tokens,true_length = encode_tokens(enc,text)
