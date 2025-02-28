@@ -29,7 +29,7 @@ import max_logging
 import tokenizer
 import tiktoken
 import librosa
-import scipy
+import scipy.signal
 from librosa.filters import mel as librosa_mel_fn
 
 Features = Dict[str, tf.Tensor]
@@ -150,10 +150,25 @@ class HFNormalizeFeatures(grain.MapTransform):
 
   def map(self, features):
     text_tokens = self.tokenizezr.encode(text=features["text"])
+    encoded = self.encoded_prefix + np.asarray(text_tokens).tolist() + self.encoded_suffix
     audio_44k = librosa.resample(features["audio"]["array"], features["audio"]["sampling_rate"], 44100)
+    mel = get_mel(audio_44k[...,np.newaxis])[0]
+    mel_length = mel.shape[0]
+    tokens = (
+                encoded
+                + [self.semantic_token_id] * mel_length
+                + [self.end_token_id]
+            )
+    tokens = np.asarray(tokens)
+    prompt_length = len(encoded)
+    mel = np.pad(mel,((0,0),(prompt_length,1)))
+    inputs_mel = mel[:-1]
+    targets_mel = mel[1:]
     return {
-        "inputs": np.asarray(text_tokens, dtype=np.int32),
-        "targets": np.asarray(text_tokens, dtype=np.int32),
+        "inputs": tokens[:-1],
+        "targets": tokens[1:],
+        "inputs_mel":inputs_mel,
+        "targets_mel":targets_mel,
     }
 
 
