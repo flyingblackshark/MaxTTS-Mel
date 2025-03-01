@@ -154,8 +154,8 @@ class HFNormalizeFeatures(grain.MapTransform):
   def map(self, features):
     text_tokens = self.tokenizezr.encode(text=features["text_normalized"])
     encoded = self.encoded_prefix + np.asarray(text_tokens).tolist() + self.encoded_suffix
-    audio_44k = librosa.resample(features["audio"]["array"], orig_sr=features["audio"]["sampling_rate"], target_sr=44100)
-    mel = get_mel(audio_44k[...,np.newaxis])[0].transpose(1,0)
+    #audio_44k = librosa.resample(features["audio"]["array"], orig_sr=features["audio"]["sampling_rate"], target_sr=44100)
+    mel = get_mel(features["audio"]["array"][...,np.newaxis])[0].transpose(1,0)
     mel_length = mel.shape[0]
     tokens = (
                 encoded
